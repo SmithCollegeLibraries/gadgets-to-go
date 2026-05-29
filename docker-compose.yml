@@ -16,6 +16,7 @@ services:
     image: yiisoftware/yii2-php:8.3-apache
     depends_on:
       - db
+    command: sh -c "composer install --no-interaction --prefer-dist && apache2-foreground"
     environment:
       APP_ENV: dev
       YII_DEBUG: "false"

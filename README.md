@@ -56,6 +56,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+The first run installs frontend npm packages and backend Composer packages into the mounted project directories. This can take a few minutes.
+
 5. Open the frontend:
 
 ```text
@@ -556,7 +558,7 @@ docker compose ps
 Restart the backend after config changes:
 
 ```bash
-docker compose up -d backend
+docker compose up -d --build backend
 ```
 
 Stop the stack:
