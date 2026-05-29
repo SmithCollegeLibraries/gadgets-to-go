@@ -63,6 +63,10 @@ class FOLIO extends Model
      */
     private function authenticate()
     {
+        if (($this->config['authMode'] ?? 'okapi-token') === 'login-with-expiry') {
+            return $this->authenticateWithExpiryCookie();
+        }
+
         $response = $this->client->createRequest()
             ->setUrl('/authn/login')
             ->setMethod('POST')
@@ -90,6 +94,60 @@ class FOLIO extends Model
         }
     }
 
+    private function authenticateWithExpiryCookie()
+    {
+        if (!function_exists('curl_init')) {
+            Yii::error('FOLIO login-with-expiry requires the PHP cURL extension.', __METHOD__);
+            throw new Exception('FOLIO authentication failed.');
+        }
+
+        $url = rtrim($this->config['folioBaseUrl'], '/') . '/authn/login-with-expiry';
+        $postData = json_encode([
+            'username' => $this->config['username'],
+            'password' => $this->config['password'],
+        ]);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $postData,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTPHEADER => [
+                'x-okapi-tenant: ' . $this->config['tenantId'],
+                'Content-Type: application/json',
+            ],
+        ]);
+
+        $fullResponse = curl_exec($ch);
+        if ($fullResponse === false) {
+            Yii::error('FOLIO login-with-expiry cURL error: ' . curl_error($ch), __METHOD__);
+            curl_close($ch);
+            throw new Exception('FOLIO authentication failed.');
+        }
+
+        $statusCode = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        curl_close($ch);
+
+        if ($statusCode < 200 || $statusCode >= 300) {
+            Yii::error('FOLIO login-with-expiry failed with status ' . $statusCode, __METHOD__);
+            throw new Exception('FOLIO authentication failed.');
+        }
+
+        $rawHeaders = substr($fullResponse, 0, $headerSize);
+        foreach (explode("\r\n", $rawHeaders) as $line) {
+            if (stripos($line, 'set-cookie:') === 0 && preg_match('/folioAccessToken=([^;]+)/', $line, $matches)) {
+                Yii::$app->cache->set($this->tokenCacheKey(), $matches[1], 3600);
+                return $matches[1];
+            }
+        }
+
+        Yii::error('FOLIO login-with-expiry did not return folioAccessToken cookie.', __METHOD__);
+        throw new Exception('FOLIO authentication failed.');
+    }
+
     /**
      * Retrieves the authentication token from cache or authenticates if not available.
      *
@@ -98,7 +156,7 @@ class FOLIO extends Model
      */
     private function getToken()
     {
-        $token = Yii::$app->cache->get('x-okapi-token');
+        $token = Yii::$app->cache->get($this->tokenCacheKey());
         if (!$token) {
             $token = $this->authenticate();
         }
@@ -123,7 +181,7 @@ class FOLIO extends Model
                 'expandAll' => 'true',
                 'query'     => $query,
             ])
-            ->setHeaders($this->getHeaders($token))
+            ->setHeaders($this->getAuthenticatedHeaders($token))
             ->send();
 
         if ($response->isOk) {
@@ -190,5 +248,23 @@ class FOLIO extends Model
         }
 
         return $headers;
+    }
+
+    private function getAuthenticatedHeaders($token)
+    {
+        if (($this->config['authMode'] ?? 'okapi-token') === 'login-with-expiry') {
+            return [
+                'x-okapi-tenant' => $this->config['tenantId'],
+                'Content-Type'   => 'application/json',
+                'Cookie'         => 'folioAccessToken=' . $token,
+            ];
+        }
+
+        return $this->getHeaders($token);
+    }
+
+    private function tokenCacheKey()
+    {
+        return 'folio-token:' . ($this->config['authMode'] ?? 'okapi-token') . ':' . ($this->config['tenantId'] ?? '');
     }
 }

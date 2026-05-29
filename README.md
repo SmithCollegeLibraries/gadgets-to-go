@@ -301,6 +301,9 @@ Configure these in `.env`:
 FOLIO_USERNAME=folio-service-user
 FOLIO_PASSWORD=change-me
 FOLIO_TENANT_ID=tenant-id
+# okapi-token uses /authn/login and x-okapi-token.
+# login-with-expiry uses /authn/login-with-expiry and the folioAccessToken cookie.
+FOLIO_AUTH_MODE=okapi-token
 
 # Used only for EBSCO Edge RTAC real-time availability.
 FOLIO_API_KEY=edge-rtac-api-key
@@ -325,6 +328,7 @@ Five Colleges deployments can still use this pattern, but it is an institution-s
 ```env
 FOLIO_AVAILABILITY_BASE_URL=https://edge-fivecolleges.folio.ebsco.com
 FOLIO_INVENTORY_BASE_URL=https://api-fivecolleges.folio.ebsco.com
+FOLIO_AUTH_MODE=login-with-expiry
 ```
 
 Backward-compatible aliases are still accepted:
