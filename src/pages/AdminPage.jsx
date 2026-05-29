@@ -1,40 +1,32 @@
 // AdminPage.jsx
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import {
-  Container,
-  Nav,
-  NavItem,
-  NavLink,
-} from 'reactstrap';
-import classnames from 'classnames';
+import { useParams, useNavigate } from 'react-router-dom';
+
 import useSchoolStore from '../store/schoolStore';
-import Header from '../components/Admin/Header';
-import '../AdminPage.css'; // Import custom CSS for additional styling
+// import Header from '../components/Admin/Header'; // Removed old header
+import AdminSidebar from '../components/Admin/AdminSidebar'; // New Sidebar
+import './AdminPage.css'; // Import custom CSS for additional styling
 
 import useFetchInventory from '../hooks/useFetchInventory';
 import useFetchStyles from '../hooks/useFetchStyles';
 import useFetchLayoutData from '../hooks/useFetchLayoutData';
 import InventoryTab from '../components/Admin/tabs/InventoryTab';
-import AddItemTab from '../components/Admin/tabs/AddItemTab';
+// import AddItemTab from '../components/Admin/tabs/AddItemTab'; // Removed
 import EditStylesTab from '../components/Admin/tabs/EditStylesTab';
+import BranchManagementTab from '../components/Admin/tabs/BranchManagementTab';
+import UserManagementTab from '../components/Admin/tabs/UserManagementTab';
 import SchoolPage from './SchoolPage';
-import SaveChangesButton from '../components/Admin/SaveChangesButton'; // If you have a save button component
+// If you have a save button component
 import useTokenValidation from '../hooks/useTokenValidation';
 
 function AdminPage() {
-  const { baseUrl } = useSchoolStore();
+  const { baseUrl, appConfig, loadConfig, getInstitutionBySlug } = useSchoolStore();
   const { isTokenExpired } = useTokenValidation();
-  const locationAbbreviations = {
-    amherst: 'AMH',
-    hampshire: 'HMC',
-    mtholyoke: 'MHC',
-    smith: 'SMC',
-    umass: 'UMA',
-  };
+  const navigate = useNavigate();
   const { location } = useParams();
   const token = localStorage.getItem('authToken');
-  const mapLocations = locationAbbreviations[location];
+  const currentInstitution = getInstitutionBySlug(location);
+  const mapLocations = currentInstitution?.code;
 
   const [activeTab, setActiveTab] = useState('inventory');
 
@@ -60,17 +52,20 @@ function AdminPage() {
     { name: 'footerText', text: '' },
   ]);
 
+  useEffect(() => {
+    loadConfig().catch((error) => console.error('Unable to load app configuration', error));
+  }, [loadConfig]);
+
   // Fetch inventory, styles, and layout data using custom hooks
   const [inventoryData] = useFetchInventory(baseUrl, mapLocations, refreshTrigger);
   const [styles] = useFetchStyles(baseUrl, mapLocations, {});
   const [layoutData] = useFetchLayoutData(baseUrl, mapLocations);
 
-    useEffect(() => {
+  useEffect(() => {
     const token = localStorage.getItem('authToken');
-        if (isTokenExpired(token)) {
-        // Optionally, handle any UI updates here
-        console.log('Token has expired, logging out...');
-        }
+    if (isTokenExpired(token)) {
+      localStorage.removeItem('authToken');
+    }
   }, [isTokenExpired]);
 
   // Initialize local styles and inventory data with fetched data
@@ -89,8 +84,6 @@ function AdminPage() {
   }, [layoutData]);
 
   useEffect(() => {
-    console.log('inventoryData changed:', inventoryData);
-
     if (inventoryData) {
       setLocalInventoryData(inventoryData);
     }
@@ -111,20 +104,28 @@ function AdminPage() {
     }));
   };
 
-    // Handle layout data changes
-    const handleLayoutChange = (name, value) => {
-        setLocalLayoutData((prevLayoutData) =>
-          prevLayoutData.map((item) =>
-            item.name === name ? { ...item, text: value } : item
-          )
+  // Handle layout data changes
+  const handleLayoutChange = (name, value) => {
+    setLocalLayoutData((prevLayoutData) => {
+      const existingItem = prevLayoutData.find(item => item.name === name);
+      
+      if (existingItem) {
+        // Update existing item
+        return prevLayoutData.map((item) =>
+          item.name === name ? { ...item, text: value } : item
         );
-      };
-    
-      // Reset styles and layout data
-      const handleResetStyles = () => {
-        setLocalStyles(originalStyles);
-        setLocalLayoutData(originalLayoutData);
-      };
+      } else {
+        // Add new item if it doesn't exist
+        return [...prevLayoutData, { name, text: value }];
+      }
+    });
+  };
+
+  // Reset styles and layout data
+  const handleResetStyles = () => {
+    setLocalStyles(originalStyles);
+    setLocalLayoutData(originalLayoutData);
+  };
 
 
   // Function to refresh inventory data after adding a new item
@@ -139,94 +140,121 @@ function AdminPage() {
   }));
 
   return (
-    <div>
-      <Header />
-      <div className="d-flex">
-        {/* Sidebar Navigation */}
-        <Nav vertical pills className="bg-light p-3 sidebar">
-          <NavItem>
-            <NavLink
-              className={classnames({ active: activeTab === 'inventory' })}
-              onClick={() => setActiveTab('inventory')}
-              href="#"
-            >
-              Inventory
-            </NavLink>
-          </NavItem>
-          <NavItem>
-            <NavLink
-              className={classnames({ active: activeTab === 'styles' })}
-              onClick={() => setActiveTab('styles')}
-              href="#"
-            >
-              Edit Styles
-            </NavLink>
-          </NavItem>
-        </Nav>
+    <div className="admin-dashboard">
+      <AdminSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Main Content */}
-        <div className="flex-grow-1 content">
-          <Container className="mt-4">
-            {activeTab === 'inventory' && (
+      <main className="admin-content" role="main">
+        <header className="admin-header">
+          <h1 className="admin-title">
+            {mapLocations ? `${mapLocations} / ` : ''}
+            {activeTab === 'inventory' && 'Inventory Management'}
+            {activeTab === 'styles' && 'Style Editor'}
+            {activeTab === 'branches' && 'Branch & Location Management'}
+            {activeTab === 'users' && 'User Management'}
+          </h1>
+          <div className="user-profile d-flex align-items-center gap-3">
+            <div className="d-flex align-items-center gap-2">
+              <label htmlFor="college-switcher" className="small text-muted mb-0">Switch College:</label>
+              <select 
+                id="college-switcher"
+                className="form-select form-select-sm" 
+                value={location} 
+                onChange={(e) => {
+                  navigate(`/admin/${e.target.value}`);
+                  window.location.reload(); // Reload to fetch new data
+                }}
+                style={{ width: 'auto', minWidth: '180px' }}
+                aria-label="Select college to manage"
+              >
+                {(appConfig.institutions || []).map((institution) => (
+                  <option key={institution.slug} value={institution.slug}>{institution.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </header>
+
+        <div className="tab-content" role="region" aria-live="polite">
+          {activeTab === 'inventory' && (
+            <div className="admin-card">
               <InventoryTab
                 inventoryData={localInventoryData}
                 styles={localStyles}
                 baseUrl={baseUrl}
                 token={token}
                 refreshInventory={refreshInventory}
-                setLocalInventoryData={setLocalInventoryData}
                 mapLocations={mapLocations}
               />
-            )}
+            </div>
+          )}
 
-            {activeTab === 'add-item' && (
-              <AddItemTab
-                baseUrl={baseUrl}
-                mapLocations={mapLocations}
-                token={token}
-                onItemAdded={refreshInventory}
-                setLocalInventoryData={setLocalInventoryData}
-                localInventoryData={localInventoryData}
-              />
-            )}
 
-            {activeTab === 'styles' && (
-            <>    
-            <EditStylesTab
-                styles={localStyles}
-                handleStyleChange={handleStyleChange}
-                handleResetStyles={handleResetStyles}
-                baseUrl={baseUrl}
-                mapLocations={mapLocations}
-                token={token}
-                layoutData={localLayoutData}
-                handleLayoutChange={handleLayoutChange}
-            />
-                          {/* Live Preview */}
-            <h2 className="mb-4">Live Preview</h2>
-            <div className="live-preview">
-            <SchoolPage
+
+          {activeTab === 'styles' && (
+            <div className="split-view">
+              <div className="editor-panel">
+                <EditStylesTab
+                  styles={localStyles}
+                  handleStyleChange={handleStyleChange}
+                  handleResetStyles={handleResetStyles}
+                  baseUrl={baseUrl}
+                  mapLocations={mapLocations}
+                  currentInstitution={currentInstitution}
+                  appName={appConfig.appName || 'Library Equipment'}
+                  token={token}
+                  layoutData={localLayoutData}
+                  handleLayoutChange={handleLayoutChange}
+                />
+                {/* Save Changes Button now inside the editor panel */}
+                {/* <div className="mt-4 pt-4 border-t border-gray-200">
+                  <SaveChangesButton
+                    localStyles={localStyles}
+                    baseUrl={baseUrl}
+                    token={token}
+                    mapLocations={mapLocations}
+                    localInventoryData={localInventoryData}
+                  />
+                </div> */}
+              </div>
+
+              <div className="preview-panel">
+                <div className="preview-header">
+                  <div className="preview-dots">
+                    <span className="preview-dot red"></span>
+                    <span className="preview-dot yellow"></span>
+                    <span className="preview-dot green"></span>
+                  </div>
+                  <span className="text-sm text-gray-500 font-medium">Live Preview</span>
+                </div>
+                <div className="preview-frame">
+                  <SchoolPage
                     isPreview={true}
                     customStyles={{ colorData: localStylesArray, layoutData: localLayoutData }}
                     customInventoryData={localInventoryData}
-                />
+                  />
+                </div>
+              </div>
             </div>
-
-            {/* Save Changes Button */}
-            <div className="mt-3">
-              <SaveChangesButton
-                localStyles={localStyles}
+          )}
+          {activeTab === 'branches' && (
+            <div className="admin-card">
+              <BranchManagementTab
                 baseUrl={baseUrl}
                 token={token}
                 mapLocations={mapLocations}
-                localInventoryData={localInventoryData}
               />
             </div>
-            </>
-            )}
-          </Container>
+          )}
+          {activeTab === 'users' && (
+            <div className="admin-card">
+              <UserManagementTab
+                baseUrl={baseUrl}
+                token={token}
+              />
+            </div>
+          )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }

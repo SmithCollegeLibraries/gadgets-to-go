@@ -1,5 +1,4 @@
 // SaveChangesButton.jsx
-import React from 'react';
 import { Button } from 'reactstrap';
 import axios from 'axios';
 
@@ -8,7 +7,6 @@ function SaveChangesButton({
   baseUrl,
   token,
   mapLocations,
-  localInventoryData,
 }) {
   const handleSaveChanges = async () => {
     try {

@@ -1,0 +1,27 @@
+appName: Gadgets-to-Go
+deployment:
+  type: single-library
+  primaryInstitutionSlug: testu
+  homePage: redirect
+requestAccess:
+  affiliationPrompt: Where are you from?
+authProviders:
+  - shibboleth
+  - local
+institutions:
+  - slug: testu
+    code: TST
+    name: Test University
+    image: /images/testu.gif
+    branchPrefixes:
+      - TS
+    branches:
+      - code: TSLIB
+        name: Test Library
+    locations:
+      - code: TSLOC
+        name: Test Library Equipment
+    defaults:
+      libraryName: Test University Library
+      headerText: Test Gadgets-to-Go
+      footerText: ""

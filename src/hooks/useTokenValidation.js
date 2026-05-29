@@ -1,17 +1,13 @@
 import { useEffect } from 'react';
 import { jwtDecode } from "jwt-decode";
-import { useNavigate } from 'react-router-dom'; // If you're using React Router
 
 const useTokenValidation = () => {
-  const navigate = useNavigate(); // For programmatically navigating
-
   // Function to check if the token is expired
   const isTokenExpired = (token) => {
     if (!token) return true;
     try {
         const decoded = jwtDecode(token);
         const currentTime = Date.now() / 1000; // Current time in seconds
-        console.log('Decoded JWT:', decoded); // Debugging log
         return decoded.exp < currentTime; // Token is expired if `exp` is less than current time
     } catch (error) {
         console.error('Failed to decode token', error);
@@ -25,8 +21,7 @@ const useTokenValidation = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('lastPage'); // Optional, if you stored the last page
 
-    // Redirect to the logout page (Shibboleth logout)
-    window.location.href = `https://libtools2.smith.edu/gadgets-to-go/backend/admin-logout/logout.php`;
+    window.location.href = `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/logout`;
   };
 
   // Check token validity on component mount

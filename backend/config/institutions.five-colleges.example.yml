@@ -1,0 +1,143 @@
+appName: Gadgets-to-Go
+deployment:
+  type: multi-library
+  primaryInstitutionSlug: smith
+  homePage: institution-picker
+requestAccess:
+  affiliationPrompt: Where are you from?
+  showAffiliationSelector: true
+authProviders:
+  - shibboleth
+  - local
+institutions:
+  - slug: amherst
+    code: AMH
+    name: Amherst College
+    image: /images/amherst.gif
+    branchPrefixes:
+      - AC
+    branches:
+      - code: ACFST
+        name: Frost Library
+      - code: ACMUS
+        name: Music Library
+      - code: ACSCI
+        name: Science Library
+    locations:
+      - code: ACMMS
+        name: Multimedia Services Equipment
+      - code: AFIN
+        name: Internet
+      - code: AFRES
+        name: Frost Reserves
+    emailDomains:
+      - amherst.edu
+    defaults:
+      libraryName: Amherst College
+      headerText: Amherst Gadgets-to-Go
+      footerText: ""
+  - slug: hampshire
+    code: HMC
+    name: Hampshire College
+    image: /images/hampshire.gif
+    branchPrefixes:
+      - HC
+    branches:
+      - code: HCLIB
+        name: Harold Johnson Library
+      - code: HCMED
+        name: Media
+      - code: HCASC
+        name: Archives & Special Collections
+    locations:
+      - code: HEQPT
+        name: Equipment - Check out at InfoBar
+      - code: HCIT
+        name: IT Equipment
+      - code: HMED
+        name: Media Services Equipment
+    emailDomains:
+      - hampshire.edu
+    defaults:
+      libraryName: Hampshire College
+      headerText: Hampshire Gadgets-to-Go
+      footerText: ""
+  - slug: mtholyoke
+    code: MHC
+    name: Mount Holyoke College
+    image: /images/mtholyoke.gif
+    branchPrefixes:
+      - MH
+    branches:
+      - code: MHLIB
+        name: Main Library
+      - code: MHPSL
+        name: Pierce Stevens Lib-Pratt
+      - code: MHLRC
+        name: Language Resource Center
+    locations:
+      - code: MQEQU
+        name: Circulation Equipment
+      - code: MPEQU
+        name: Pratt Circulation Equipment
+      - code: MLRC
+        name: LRC
+    emailDomains:
+      - mtholyoke.edu
+    defaults:
+      libraryName: Mount Holyoke College
+      headerText: Mount Holyoke Gadgets-to-Go
+      footerText: ""
+  - slug: smith
+    code: SMC
+    name: Smith College
+    image: /images/smith.gif
+    branchPrefixes:
+      - SC
+    branches:
+      - code: SCNLS
+        name: Neilson Library
+      - code: SCJOS
+        name: Josten Library
+      - code: SCPC
+        name: Special Collections
+    locations:
+      - code: SCAEQ
+        name: Art Equipment
+      - code: SCJEQ
+        name: Josten Equipment
+      - code: SNNEQ
+        name: Neilson Equipment
+    emailDomains:
+      - smith.edu
+    defaults:
+      libraryName: Smith College
+      headerText: Gadgets-To-Go
+      footerText: ""
+  - slug: umass
+    code: UMA
+    name: UMass Amherst
+    image: /images/umass.gif
+    branchPrefixes:
+      - UM
+    branches:
+      - code: UMDUB
+        name: W. E. B. Du Bois Library
+      - code: UMSCI
+        name: Science & Engineering Library
+      - code: UMDML
+        name: Digital Media Lab
+    locations:
+      - code: UMDML
+        name: Digital Media Lab
+      - code: UMDUB
+        name: W. E. B. Du Bois Library
+      - code: UMSCI
+        name: Science & Engineering Library
+    emailDomains:
+      - umass.edu
+      - library.umass.edu
+    defaults:
+      libraryName: University of Massachusetts
+      headerText: UMass Gadgets-to-Go
+      footerText: ""

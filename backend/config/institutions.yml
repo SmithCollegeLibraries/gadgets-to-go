@@ -1,0 +1,30 @@
+appName: Library Equipment
+deployment:
+  type: single-library
+  primaryInstitutionSlug: main-library
+  homePage: redirect
+requestAccess:
+  affiliationPrompt: Library
+  showAffiliationSelector: false
+authProviders:
+  - shibboleth
+  - local
+institutions:
+  - slug: main-library
+    code: LIB
+    name: Main Library
+    image: /images/main-library.png
+    branchPrefixes:
+      - LIB
+    branches:
+      - code: LIBMAIN
+        name: Main Library
+    locations:
+      - code: LIBEQ
+        name: Equipment Desk
+    emailDomains:
+      - example.edu
+    defaults:
+      libraryName: Main Library
+      headerText: Equipment Checkout
+      footerText: ""

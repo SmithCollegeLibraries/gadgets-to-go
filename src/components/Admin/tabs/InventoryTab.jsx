@@ -1,606 +1,933 @@
 import {
-  Row, Col, Card, CardBody, CardTitle, CardText, Button, Input, FormGroup, Label, Modal, ModalHeader, ModalBody, ModalFooter,Table
+  Row, Col, Card, CardBody, CardTitle, Button, Input, FormGroup, Label, Modal, ModalHeader, ModalBody, ModalFooter, Table, ButtonGroup
 } from 'reactstrap';
 import PropTypes from 'prop-types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import { toast } from 'react-toastify';
+import SearchableSelect from '../../Common/SearchableSelect';
+import AddItemModal from '../modals/AddItemModal';
+import useSchoolStore from '../../../store/schoolStore';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory, setLocalInventoryData, mapLocations }) {
+// ReactQuill toolbar configuration
+const quillModules = {
+  toolbar: [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link'],
+    ['clean']
+  ],
+};
+
+const quillFormats = [
+  'header',
+  'bold', 'italic', 'underline', 'strike',
+  'list', 'bullet',
+  'link'
+];
+
+const EMPTY_LIST = [];
+const IMAGE_FORMATS = ['jpg', 'jpeg', 'png', 'gif'];
+
+const stripHtml = (html) => {
+  const tmp = document.createElement('DIV');
+  tmp.innerHTML = html || '';
+  return tmp.textContent || tmp.innerText || '';
+};
+
+function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory, mapLocations }) {
+  const appConfig = useSchoolStore((state) => state.appConfig);
+  const getInstitutionByCode = useSchoolStore((state) => state.getInstitutionByCode);
+  const currentInstitution = getInstitutionByCode(mapLocations);
+  const configuredBranches = currentInstitution?.branches || EMPTY_LIST;
+  const configuredLocations = currentInstitution?.locations || EMPTY_LIST;
+  const institutions = appConfig.institutions || EMPTY_LIST;
+  const [viewMode, setViewMode] = useState('list');
+  const [groupMode, setGroupMode] = useState(false); // New: Group by Branch
   const [editableItem, setEditableItem] = useState(null);
   const [formData, setFormData] = useState({});
   const [imageFile, setImageFile] = useState(null);
   const [imageSrcs, setImageSrcs] = useState({});
-  const [isModalOpen, setIsModalOpen] = useState(false); // Modal state
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchType, setSearchType] = useState('title');
-  const [location, setLocation] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedItems, setSelectedItems] = useState([]);
-  const [selectedItemsData, setSelectedItemsData] = useState({});
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // --- Advanced Sorting & Reordering State ---
+  const [localInventory, setLocalInventory] = useState([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: 'default', direction: 'asc' }); // { key: 'default'|'title'|'branch'|'branch_priority', direction: 'asc'|'desc' }
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [moveTargetId, setMoveTargetId] = useState('');
+  const [movePosition, setMovePosition] = useState('after'); // 'before', 'after'
 
+  // Custom Branch Sort State
+  const [customBranchOrder, setCustomBranchOrder] = useState([]);
+  const [isBranchOrderModalOpen, setIsBranchOrderModalOpen] = useState(false);
 
-  // const [newItem, setNewItem] = useState({
-  //   title: '',
-  //   description: '',
-  //   folio_id: '',
-  //   sort_order: '',
-  //   image: null,
-  // });
-
-  
-
-
-  const apiUrl = import.meta.env.VITE_API_URL
-
-  // List of image formats to try
-  const imageFormats = ['jpg', 'jpeg', 'png', 'gif'];
+  // Initialize custom branch order from configured branches once
+  useEffect(() => {
+    if (customBranchOrder.length === 0) {
+      const activeCodes = new Set();
+      inventoryData.forEach(i => {
+        const branchList = Array.isArray(i.branches) ? i.branches : (i.branch ? [i.branch] : []);
+        branchList.forEach(b => activeCodes.add(b));
+      });
+      const initialOrder = configuredBranches.filter(b => activeCodes.has(b.code));
+      setCustomBranchOrder(initialOrder.length > 0 ? initialOrder : configuredBranches);
+    }
+  }, [inventoryData, customBranchOrder.length, configuredBranches]);
 
   const toggleSearchModal = () => setIsSearchModalOpen(!isSearchModalOpen);
-
-
-  // Function to check if image exists for each format
-  const checkImageFormat = async (folioId) => {
-    for (let format of imageFormats) {
-      const imageUrl = `https://libtools2.smith.edu/gadgets-to-go/backend/images/${folioId}.${format}`;
-      try {
-        const response = await axios.get(imageUrl);
-        if (response.status === 200) {
-          return imageUrl; // Return the first valid image URL
-        }
-      } catch (error) {
-        // If image doesn't exist, continue to next format
-        continue;
-      }
+  const toggleEditModal = () => {
+    setIsEditModalOpen(!isEditModalOpen);
+    if (isEditModalOpen) {
+      setEditableItem(null);
+      setFormData({});
+      setImageFile(null);
     }
-    return null; // Return null if no image is found
   };
 
-  // UseEffect to load images for each item in the inventory
+  // Add accessible labels to ReactQuill toolbar buttons after edit modal opens
+  useEffect(() => {
+    if (!isEditModalOpen) return;
+    
+    const addAccessibleLabels = () => {
+      // Add labels to toolbar buttons
+      const headerButtons = document.querySelectorAll('.ql-header');
+      headerButtons.forEach((btn) => {
+        if (!btn.getAttribute('aria-label')) {
+          const value = btn.getAttribute('value');
+          if (value === '1') btn.setAttribute('aria-label', 'Heading 1');
+          else if (value === '2') btn.setAttribute('aria-label', 'Heading 2');
+          else if (value === '3') btn.setAttribute('aria-label', 'Heading 3');
+          else btn.setAttribute('aria-label', 'Normal text');
+        }
+      });
+      
+      const boldBtn = document.querySelector('.ql-bold');
+      if (boldBtn && !boldBtn.getAttribute('aria-label')) {
+        boldBtn.setAttribute('aria-label', 'Bold');
+      }
+      
+      const italicBtn = document.querySelector('.ql-italic');
+      if (italicBtn && !italicBtn.getAttribute('aria-label')) {
+        italicBtn.setAttribute('aria-label', 'Italic');
+      }
+      
+      const underlineBtn = document.querySelector('.ql-underline');
+      if (underlineBtn && !underlineBtn.getAttribute('aria-label')) {
+        underlineBtn.setAttribute('aria-label', 'Underline');
+      }
+      
+      const strikeBtn = document.querySelector('.ql-strike');
+      if (strikeBtn && !strikeBtn.getAttribute('aria-label')) {
+        strikeBtn.setAttribute('aria-label', 'Strikethrough');
+      }
+      
+      const orderedListBtn = document.querySelector('.ql-list[value="ordered"]');
+      if (orderedListBtn && !orderedListBtn.getAttribute('aria-label')) {
+        orderedListBtn.setAttribute('aria-label', 'Ordered List');
+      }
+      
+      const bulletListBtn = document.querySelector('.ql-list[value="bullet"]');
+      if (bulletListBtn && !bulletListBtn.getAttribute('aria-label')) {
+        bulletListBtn.setAttribute('aria-label', 'Bullet List');
+      }
+      
+      const linkBtn = document.querySelector('.ql-link');
+      if (linkBtn && !linkBtn.getAttribute('aria-label')) {
+        linkBtn.setAttribute('aria-label', 'Insert Link');
+      }
+
+      const cleanBtn = document.querySelector('.ql-clean');
+      if (cleanBtn && !cleanBtn.getAttribute('aria-label')) {
+        cleanBtn.setAttribute('aria-label', 'Remove Formatting');
+      }
+
+      // Label the editor itself
+      const editors = document.querySelectorAll('.ql-editor');
+      editors.forEach((editor) => {
+        if (!editor.getAttribute('aria-label')) {
+          editor.setAttribute('aria-label', 'Item Description Editor');
+          editor.setAttribute('role', 'textbox');
+        }
+      });
+
+      // Label the toolbar
+      const toolbars = document.querySelectorAll('.ql-toolbar');
+      toolbars.forEach((toolbar) => {
+        if (!toolbar.getAttribute('aria-label')) {
+          toolbar.setAttribute('aria-label', 'Text Formatting Toolbar');
+          toolbar.setAttribute('role', 'toolbar');
+        }
+      });
+    };
+
+    // Run after a short delay to ensure Quill is fully initialized
+    const timer = setTimeout(addAccessibleLabels, 100);
+    return () => clearTimeout(timer);
+  }, [isEditModalOpen]);
+
+  // Initialize local inventory from props
+  useEffect(() => {
+    // Only reset if no unsaved changes to prevent overwriting work
+    if (!hasUnsavedChanges) {
+      setLocalInventory([...inventoryData].sort((a, b) => a.sort_order - b.sort_order));
+    }
+  }, [inventoryData, hasUnsavedChanges]);
+
+  // Handle Sort Toggle
+  const handleSortBy = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key) direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+    setSortConfig({ key, direction });
+
+    let sorted = [...localInventory];
+    const modifier = direction === 'asc' ? 1 : -1;
+
+    if (key === 'title') {
+      sorted.sort((a, b) => modifier * a.title.localeCompare(b.title));
+    } else if (key === 'branch') {
+      sorted.sort((a, b) => {
+        const aBranch = Array.isArray(a.branches) && a.branches.length > 0 ? a.branches[0] : (a.branch || '');
+        const bBranch = Array.isArray(b.branches) && b.branches.length > 0 ? b.branches[0] : (b.branch || '');
+        return modifier * aBranch.localeCompare(bBranch);
+      });
+    } else if (key === 'branch_priority') {
+      // Use Custom Branch Order
+      const branchIndex = customBranchOrder.reduce((acc, b, idx) => ({ ...acc, [b.code]: idx }), {});
+      sorted.sort((a, b) => {
+        const aBranch = Array.isArray(a.branches) && a.branches.length > 0 ? a.branches[0] : a.branch;
+        const bBranch = Array.isArray(b.branches) && b.branches.length > 0 ? b.branches[0] : b.branch;
+        const ia = branchIndex[aBranch] ?? 999;
+        const ib = branchIndex[bBranch] ?? 999;
+        return modifier * (ia - ib);
+      });
+    } else {
+      sorted.sort((a, b) => a.sort_order - b.sort_order);
+    }
+
+    setLocalInventory(sorted);
+    if (key !== 'default') setHasUnsavedChanges(true); // Sorting makes the list unsaved if not default
+  };
+
+  // Move Branch Config Up/Down
+  const moveBranchConfig = (index, direction) => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= customBranchOrder.length) return;
+
+    const newOrder = [...customBranchOrder];
+    const [moved] = newOrder.splice(index, 1);
+    newOrder.splice(newIndex, 0, moved);
+    setCustomBranchOrder(newOrder);
+  };
+
+  const applyBranchOrder = () => {
+    setIsBranchOrderModalOpen(false);
+    // Re-trigger sort if currently sorting by branch priority
+    if (sortConfig.key === 'branch_priority') {
+      handleSortBy('branch_priority'); // This re-sorts using the new order but might toggle direction if not careful.
+      // Better: Explicitly call sort with current config... but simplest is to just re-trigger for now.
+      // Actually handleSortBy toggles direction. We should separate generic sort function from handler.
+      // For now, let's just force a re-sort manually here to avoid toggle side effect.
+      const modifier = sortConfig.direction === 'asc' ? 1 : -1;
+      const branchIndex = customBranchOrder.reduce((acc, b, idx) => ({ ...acc, [b.code]: idx }), {});
+      let sorted = [...localInventory].sort((a, b) => {
+        const aBranch = Array.isArray(a.branches) && a.branches.length > 0 ? a.branches[0] : a.branch;
+        const bBranch = Array.isArray(b.branches) && b.branches.length > 0 ? b.branches[0] : b.branch;
+        const ia = branchIndex[aBranch] ?? 999;
+        const ib = branchIndex[bBranch] ?? 999;
+        return modifier * (ia - ib);
+      });
+      setLocalInventory(sorted);
+    }
+  };
+
+  // Selection Checkbox
+  const toggleSelection = (id) => {
+    setSelectedItemIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  // Batch Move Logic
+  const openMoveModal = () => setIsMoveModalOpen(true);
+  const handleBatchMove = () => {
+    if (!moveTargetId || selectedItemIds.length === 0) return;
+
+    // Find target in localInventory
+    const targetIndex = localInventory.findIndex(i => i.id === parseInt(moveTargetId));
+    if (targetIndex === -1) return;
+
+    // Filter items
+    const itemsToMove = localInventory.filter(i => selectedItemIds.includes(i.id));
+    const remaining = localInventory.filter(i => !selectedItemIds.includes(i.id));
+
+    // Calculate insert position in *remaining* list
+    const newTargetIndex = remaining.findIndex(i => i.id === parseInt(moveTargetId));
+    const insertIndex = movePosition === 'after' ? newTargetIndex + 1 : newTargetIndex;
+
+    remaining.splice(insertIndex, 0, ...itemsToMove);
+
+    setLocalInventory(remaining);
+    setHasUnsavedChanges(true);
+    setSelectedItemIds([]);
+    setIsMoveModalOpen(false);
+  };
+
+  // Save Order to Server
+  const handleSaveOrder = async () => {
+    try {
+      const updates = localInventory.map((item, index) => ({
+        id: item.id,
+        sort_order: index + 1,
+        // original_order could be checked here to filter
+      }));
+
+      // Optimization: Only send changed items?
+      // For now, simpler to send all in batch logic block or loop.
+      // We will loop update requests as implemented before.
+
+      const promises = updates.map(u => {
+        const original = inventoryData.find(i => i.id === u.id);
+        // Only update if sort_order changed
+        if (original && original.sort_order === u.sort_order) return Promise.resolve();
+
+        const f = new FormData();
+        f.append('title', original.title);
+        f.append('description', original.description);
+        f.append('owner', original.owner);
+        // Preserve branches array
+        const branches = Array.isArray(original.branches) ? original.branches : (original.branch ? [original.branch] : []);
+        if (branches.length > 0) {
+          branches.forEach(branch => f.append('branches[]', branch));
+        }
+        f.append('folio_id', original.folio_id);
+        f.append('sort_order', u.sort_order);
+
+        return axios.post(`${baseUrl}/inventory/update/${u.id}`, f, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      });
+
+      await Promise.all(promises);
+      toast.success('Inventory order updated.');
+      setHasUnsavedChanges(false);
+      refreshInventory();
+    } catch (error) {
+      console.error('Save failed', error);
+      toast.error('Failed to save order.');
+    }
+  };
+
+
+  const checkImageFormat = useCallback(async (itemId) => {
+    for (let format of IMAGE_FORMATS) {
+      const imageUrl = `${baseUrl}/inventory/get-image-data?id=${encodeURIComponent(itemId)}&format=${format}`;
+      try {
+        const response = await axios.get(imageUrl);
+        if (response.status === 200) return imageUrl;
+      } catch (error) { continue; }
+    }
+    return null;
+  }, [baseUrl]);
+
   useEffect(() => {
     const loadImages = async () => {
       const srcs = {};
       for (let item of inventoryData) {
-        const imageUrl = await checkImageFormat(item.folio_id);
-        srcs[item.id] = imageUrl;
+        if (!imageSrcs[item.id]) {
+          const imageUrl = await checkImageFormat(item.id);
+          srcs[item.id] = imageUrl;
+        }
       }
-      setImageSrcs(srcs);
+      setImageSrcs(prev => ({ ...prev, ...srcs }));
     };
-    loadImages();
-  }, [inventoryData]);
+    if (inventoryData.length > 0) loadImages();
+  }, [checkImageFormat, imageSrcs, inventoryData]);
 
-  // Handle input change for text fields
-  const handleInputChange = (e, item) => {
-    const { name, value } = e.target;
-    setFormData((prevFormData) => ({
-      ...prevFormData,
-      [item.id]: { ...prevFormData[item.id], [name]: value }
-    }));
+  const openEditModal = (item) => {
+    setEditableItem(item);
+    setFormData({
+      title: item.title,
+      description: item.description,
+      sort_order: item.sort_order,
+      owner: item.owner,
+      branches: Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : []) // Handle both old and new format
+    });
+    setIsEditModalOpen(true);
   };
 
-  // Update the inventory item
-  const handleUpdate = async (item) => {
-    const updateData = formData[item.id] || {};
-  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleDescriptionChange = (value) => {
+    setFormData(prev => ({ ...prev, description: value }));
+  };
+
+  const handleBranchChange = (value) => {
+    // Add branch if not already in array
+    if (value && !formData.branches.includes(value)) {
+      setFormData(prev => ({ ...prev, branches: [...prev.branches, value] }));
+    }
+  };
+
+  const handleRemoveBranch = (branchToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      branches: prev.branches.filter(b => b !== branchToRemove)
+    }));
+  }
+
+  const handleImageChange = (e) => {
+    if (e.target.files[0]) setImageFile(e.target.files[0]);
+  };
+
+  const handleUpdate = async () => {
+    if (!editableItem) return;
+
     try {
       const form = new FormData();
-      form.append('title', updateData.title || item.title);
-      form.append('description', updateData.description || item.description);
-      form.append('sort_order', updateData.sort_order || item.sort_order);
-      form.append('timestamp', updateData.timestamp || item.timestamp);
-      form.append('folio_id', updateData.folio_id || item.folio_id);
-      form.append('aleph_id', updateData.aleph_id || item.aleph_id);
-      form.append('owner', updateData.owner || item.owner);
-  
-      if (imageFile && imageFile[item.id]) {
-        form.append('image', imageFile[item.id]);
+      form.append('title', formData.title);
+      form.append('description', formData.description);
+      form.append('sort_order', editableItem.sort_order); // Keep existing sort order
+      form.append('owner', formData.owner);
+      // Send branches as array
+      if (Array.isArray(formData.branches) && formData.branches.length > 0) {
+        formData.branches.forEach(branch => form.append('branches[]', branch));
       }
-  
-      // Optimistically update the local state
-      const updatedInventoryData = inventoryData.map((invItem) => {
-        if (invItem.id === item.id) {
-          return { ...invItem, ...updateData };
-        }
-        return invItem;
+      form.append('folio_id', editableItem.folio_id);
+      form.append('aleph_id', editableItem.aleph_id || '');
+
+      if (imageFile) form.append('image', imageFile);
+
+      await axios.post(`${baseUrl}/inventory/update/${editableItem.id}`, form, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
       });
-      setLocalInventoryData(updatedInventoryData);
-  
-      // Send PUT request to update the inventory item
-      await axios.post(`${apiUrl}/inventory/update/${item.id}`, form, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-  
-      // Re-check the image format after updating
-      const imageUrl = await checkImageFormat(item.folio_id);
-      setImageSrcs((prevSrcs) => ({
-        ...prevSrcs,
-        [item.id]: imageUrl, // Update the local image source
-      }));
-  
+
       toast.success('Item updated successfully!');
+      if (imageFile) {
+        const imageUrl = URL.createObjectURL(imageFile);
+        setImageSrcs((prev) => ({ ...prev, [editableItem.id]: imageUrl }));
+      }
+
       refreshInventory();
+      toggleEditModal();
+
     } catch (error) {
-      console.error('Failed to update item', error);
-      const errorMessage = error.response?.data?.message || 'Failed to update item.';
-      toast.error(errorMessage);
+      console.error('Failed to update', error);
+      toast.error('Failed to update item.');
     }
   };
-  
-  
 
-    // Toggle modal visibility
-    const toggleModal = () => setIsModalOpen(!isModalOpen);
-
-    // // Handle modal input change for new item
-    // const handleNewItemChange = (e) => {
-    //   setNewItem({
-    //     ...newItem,
-    //     [e.target.name]: e.target.value,
-    //   });
-    // };
-  
-    // // Handle image change for new item in modal
-    // const handleNewImageChange = (e) => {
-    //   setNewItem({
-    //     ...newItem,
-    //     image: e.target.files[0],
-    //   });
-    // };
-  
-
-  // Delete the inventory item
   const handleDelete = async (item) => {
+    if (!window.confirm(`Are you sure you want to delete "${item.title}"?`)) return;
     try {
-      await axios.delete(`${apiUrl}/inventory/delete/${item.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        data: { folio_id: item.folio_id } // Send folio_id to handle image deletion
+      await axios.delete(`${baseUrl}/inventory/delete/${item.id}`, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        data: { folio_id: item.folio_id }
       });
       toast.success('Item deleted successfully!');
-    } catch (error) {
-      console.error('Failed to delete item', error);
-      toast.error('Failed to delete item.');
-    }
-    refreshInventory();
+      refreshInventory();
+    } catch (error) { toast.error('Failed to delete item.'); }
   };
 
-    // Add new item through the modal
-    // const handleAddItem = async () => {
-    //   const formData = new FormData();
-    //   formData.append('title', newItem.title);
-    //   formData.append('folio_id', newItem.folio_id);
-    //   formData.append('description', newItem.description);
-    //   formData.append('owner', 'MHC'); // Adjust accordingly
-    //   formData.append('sort_order', newItem.sort_order);
-  
-    //   if (newItem.image) {
-    //     formData.append(
-    //       'file',
-    //       newItem.image,
-    //       `${newItem.folio_id}.${newItem.image.type.split('/')[1]}`
-    //     );
-    //   }
-
-    //   // Optimistically add the new item to local state
-    //   const newInventoryData = [...inventoryData, { ...newItem, id: Date.now() }]; // Temporary ID until confirmed
-    //   setLocalInventoryData(newInventoryData);
-  
-    //   try {
-    //     await axios.post(`${baseUrl}/inventory/create`, formData, {
-    //       headers: {
-    //         Authorization: `Bearer ${token}`,
-    //         'Content-Type': 'multipart/form-data',
-    //       },
-    //     });
-    //     alert('Item added successfully!');
-    //     refreshInventory(); // Refresh inventory data
-    //     toggleModal(); // Close modal
-    //   } catch (error) {
-    //     console.error('Error adding new item:', error);
-    //   }
-    // };
 
 
-      // Search types
-  const searchTypes = {
-    title: 'Title',
-    hrid: 'HRID',
-    location: 'Location',
+  // --- Render Helpers ---
+
+  const getBranchName = (code) => {
+    const b = configuredBranches.find(br => br.code === code);
+    if (!b) return code || 'Unassigned';
+    // Remove 2-letter prefix followed by space (e.g. "SC ", "MH ")
+    return b.name.replace(/^[A-Z]{2}\s+/, '');
   };
 
-  // List of effective location options
-  const effectiveLocations = [
-    { id: 'aa06e792-9891-4654-9153-fffa611edb6d', name: 'AC Multimedia Services Equipment' },
-    { id: '7f436e65-7948-4e18-acc0-aab3707aabea', name: 'AC Fayerweather Equipment' },
-    { id: 'dcfef97d-3340-4f48-a1bc-ac25fad65c6f', name: 'HC Media Services Equipment' },
-    { id: '57148fe4-7cf3-47fd-9a3e-0d95db4c1497', name: 'MH Circulation Equipment' },
-    { id: '13b5a7d0-aaaa-479a-8843-6025b2799014', name: 'SC Neilson Equipment' },
-    { id: '32319fdd-5390-489e-98e7-a4c7c07aa1ea', name: 'AC Frost Equipment' },
-    { id: 'b241fe21-2931-42e0-bd09-57c63cfca7eb', name: 'HC Equipment - Check out at InfoBar' },
-    { id: 'df19e8af-ed36-4fa4-920d-fe41a22e6aa2', name: 'SC Art Equipment' },
-    { id: '2e199273-5bd2-4012-82a3-388bc97ca729', name: 'MH Pratt Circulation Equipment' },
-    { id: 'b0f269e0-1aa3-405e-a246-8876381f43df', name: 'UM Science Equipment' },
-  ];
-  
-
-  // Handle search query submission
-  const handleSearch = async () => {
-    let queryUrl = `https://libtools2.smith.edu/folio/web/search/search-inventory?query=`;
-    if (searchType === 'title') {
-      queryUrl += `(title all "${searchQuery}")`;
-    } else if (searchType === 'hrid') {
-      queryUrl += `hrid=${searchQuery}`;
-    } else if (searchType === 'location') {
-      queryUrl += `(items.effectiveLocationId=="${location}")`;
-    }
-
-    try {
-      const response = await axios.get(queryUrl);
-      const data = response.data.data.instances || [];
-      setSearchResults(data);
-    } catch (error) {
-      console.error('Error searching inventory:', error);
-    }
+  const getBranchesDisplay = (item) => {
+    const branchList = Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : []);
+    if (branchList.length === 0) return 'Unassigned';
+    return branchList.map(code => getBranchName(code)).join(', ');
   };
 
-  const handleClear = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setSearchType('title');
-    setLocation('');
-  };
+  const filteredBranches = configuredBranches;
 
-  const handleSelectItem = (item) => {
-    setSelectedItemsData((prevData) => ({
-      ...prevData,
-      [item.id]: {
-        ...prevData[item.id],
-        item: item,
-        selected: !prevData[item.id]?.selected, // Toggle selection
-        description: prevData[item.id]?.description || '',
-        image: prevData[item.id]?.image || null,
-      },
-    }));
-  };
-  
-  const handleDescriptionChange = (e, item) => {
-    const { value } = e.target;
-    setSelectedItemsData((prevData) => ({
-      ...prevData,
-      [item.id]: {
-        ...prevData[item.id],
-        description: value,
-      },
-    }));
-  };
-  
-  const handleImageChange = (e, item) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile((prevImageFile) => ({
-        ...prevImageFile,
-        [item.id]: file, // Store the selected image file
-      }));
-    }
-  };
+  // Group items if mode enabled
+  const renderContent = () => {
+    let content = [];
+    const dataToRender = hasUnsavedChanges || sortConfig.key !== 'default' ? localInventory : inventoryData;
 
-  const handleBatchImageChange = (e, item) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedItemsData((prevData) => ({
-        ...prevData,
-        [item.id]: {
-          ...prevData[item.id],
-          image: file,
-        },
-      }));
-    }
-  };
-
-  // Handle batch upload of selected items
-  const handleBatchUpload = async () => {
-    for (let data of Object.values(selectedItemsData)) {
-      if (data.selected) {
-        const { item, description, image } = data;
-
-        const formData = new FormData();
-        formData.append('title', item.title);
-        formData.append('folio_id', item.id);
-        formData.append('description', description || '');
-        formData.append('owner', mapLocations); 
-        formData.append('sort_order', 0); // Adjust as needed
-  
-        if (image) {
-          formData.append('image', image); // Remove [item.id]
-        }
-  
-        // Check if the item already exists
-        const existingItem = inventoryData.find((inv) => inv.folio_id === item.id);
-        if (!existingItem) {
-          try {
-            await axios.post(`${baseUrl}/inventory/create`, formData, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
-            toast.success(`Item "${item.title}" added successfully!`);
-          } catch (error) {
-            toast.error(`Error adding item: ${error.response?.data?.message || error.message}`);
-            console.error('Error adding item:', error);
-          }
+    if (groupMode) {
+      const grouped = {};
+      dataToRender.forEach(item => {
+        const branchList = Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : []);
+        if (branchList.length === 0) {
+          if (!grouped['Unassigned']) grouped['Unassigned'] = [];
+          grouped['Unassigned'].push(item);
         } else {
-          toast.error(`Item with FOLIO ID ${item.id} already exists.`);
+          // Add item to each branch it belongs to
+          branchList.forEach(b => {
+            if (!grouped[b]) grouped[b] = [];
+            grouped[b].push(item);
+          });
         }
-      }
+      });
+
+      Object.keys(grouped).sort().forEach(groupKey => {
+        content.push(
+          <div key={groupKey} className="mb-4">
+            <h5 className="mb-3 text-secondary border-bottom pb-2">
+              {getBranchName(groupKey)} <small className="text-muted fw-normal">({grouped[groupKey].length})</small>
+            </h5>
+            {viewMode === 'grid' ? renderGrid(grouped[groupKey]) : renderList(grouped[groupKey])}
+          </div>
+        )
+      });
+    } else {
+      content = viewMode === 'grid' ? renderGrid(dataToRender) : renderList(dataToRender);
     }
-    refreshInventory();
+    return content;
+  }
+
+  const renderGrid = (items) => (
+    <Row>
+      {items.map((item) => (
+        <Col key={item.id} md={4} lg={3} className="mb-4">
+          <Card className="h-100 shadow-sm border-0" style={{ backgroundColor: styles.backgroundColor }}>
+            <CardBody className="d-flex flex-column">
+              <div className="mb-3 d-flex align-items-center justify-content-center bg-light rounded" style={{ height: '180px', overflow: 'hidden' }}>
+                {imageSrcs[item.id] ? (
+                  <img src={imageSrcs[item.id]} alt={item.title} style={{ maxHeight: '100%', maxWidth: '100%' }} />
+                ) : (<span className="text-muted">No Image</span>)}
+              </div>
+              <CardTitle tag="h6" className="mb-2 fw-bold text-truncate" style={{ color: styles.titleColor }} title={item.title}>{item.title}</CardTitle>
+              <div className="d-flex justify-content-between align-items-end flex-grow-1 mt-3">
+                <div className="d-flex flex-column gap-1 overflow-hidden" style={{ maxWidth: '60%' }}>
+                  <span className="badge bg-secondary align-self-start text-truncate" style={{ maxWidth: '100%' }}>{item.owner}</span>
+                  {(Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : [])).map((branchCode, idx) => (
+                    <span key={idx} className="badge bg-light text-dark border align-self-start text-truncate" style={{ maxWidth: '100%' }} title={getBranchName(branchCode)}>
+                      {getBranchName(branchCode)}
+                    </span>
+                  ))}
+                </div>
+                <div className="d-flex flex-nowrap gap-1">
+                  <Button size="sm" color="outline-primary" onClick={() => openEditModal(item)} aria-label={`Edit ${item.title}`}><i className="bi bi-pencil" aria-hidden="true"></i></Button>
+                  <Button size="sm" color="outline-danger" onClick={() => handleDelete(item)} aria-label={`Delete ${item.title}`}><i className="bi bi-trash" aria-hidden="true"></i></Button>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  );
+
+  // Sortable Row Component
+  const SortableRow = ({ item, index }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: item.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+      backgroundColor: selectedItemIds.includes(item.id) ? '#fff3cd' : 'white',
+    };
+
+    return (
+      <tr ref={setNodeRef} style={style} {...attributes}>
+        <td className="text-center">
+          <Input type="checkbox" checked={selectedItemIds.includes(item.id)} onChange={() => toggleSelection(item.id)} aria-label={`Select ${item.title}`} />
+        </td>
+        <td>
+          <div {...listeners} style={{ cursor: 'grab', display: 'inline-flex', alignItems: 'center', padding: '4px' }} role="button" aria-label={`Drag to reorder ${item.title}`} tabIndex="0">
+            <i className="bi bi-grip-vertical text-secondary" style={{ fontSize: '1.2rem' }} aria-hidden="true"></i>
+          </div>
+        </td>
+        <td>{imageSrcs[item.id] && <img src={imageSrcs[item.id]} className="rounded" style={{ width: '40px' }} alt="" />}</td>
+        <td className="fw-medium text-start">{item.title}</td>
+        <td className="text-start text-muted small text-truncate" style={{ maxWidth: '200px' }} aria-label={`Description: ${stripHtml(item.description)}`}>
+          <div dangerouslySetInnerHTML={{ __html: item.description }} aria-hidden="true" />
+        </td>
+        <td>
+          <span className="small text-muted">{index + 1}</span>
+        </td>
+        <td>{getBranchesDisplay(item)}</td>
+        <td className="text-end">
+          <div className="d-flex justify-content-end gap-1">
+            <Button size="sm" color="outline-primary" onClick={() => openEditModal(item)} aria-label={`Edit ${item.title}`}><i className="bi bi-pencil" aria-hidden="true"></i></Button>
+            <Button size="sm" color="outline-danger" onClick={() => handleDelete(item)} aria-label={`Delete ${item.title}`}><i className="bi bi-trash" aria-hidden="true"></i></Button>
+          </div>
+        </td>
+      </tr>
+    );
   };
-  
+
+  // Handle drag end
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = localInventory.findIndex((item) => item.id === active.id);
+      const newIndex = localInventory.findIndex((item) => item.id === over.id);
+
+      const newOrder = arrayMove(localInventory, oldIndex, newIndex);
+      setLocalInventory(newOrder);
+      setHasUnsavedChanges(true);
+    }
+  };
+
+  // Setup sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required before drag starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const renderList = (items) => (
+    <div className="bg-white rounded shadow-sm mb-3">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <Table responsive hover className="mb-0 align-middle">
+          <thead className="bg-light">
+            <tr>
+              <th scope="col" style={{ width: '40px' }} className="text-center" aria-label="Select items">
+                <Input type="checkbox"
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedItemIds(items.map(i => i.id));
+                    else setSelectedItemIds([]);
+                  }}
+                  checked={items.length > 0 && selectedItemIds.length === items.length}
+                  aria-label="Select all items"
+                />
+              </th>
+              <th scope="col" style={{ width: '50px' }} aria-label="Drag to reorder">
+                <i className="bi bi-arrows-move text-muted" aria-hidden="true"></i>
+              </th>
+              <th scope="col" style={{ width: '60px' }}>Image</th>
+              <th scope="col" className="text-start" style={{ width: '20%' }}>Title</th>
+              <th scope="col" className="text-start" style={{ width: '30%' }}>Description</th>
+              <th scope="col" style={{ width: '60px' }}>#</th>
+              <th scope="col" style={{ width: '20%' }}>Branch</th>
+              <th scope="col" className="text-end" style={{ width: '120px' }}>Actions</th>
+            </tr>
+          </thead>
+          <SortableContext
+            items={items.map(item => item.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <tbody>
+              {items.map((item, index) => (
+                <SortableRow key={item.id} item={item} index={index} />
+              ))}
+            </tbody>
+          </SortableContext>
+        </Table>
+      </DndContext>
+    </div>
+  );
 
   return (
-    <>
-      <h2 className="mb-4">Current Inventory</h2>
-      <Button color="info" onClick={toggleSearchModal}>Add Equipment</Button> {/* Button to open search modal */}
+    <div className="inventory-tab-container">
+      {/* Batch Actions Bar (Sticky) */}
+      {(hasUnsavedChanges || selectedItemIds.length > 0) && (
+        <div className="sticky-top bg-warning-subtle p-3 rounded mb-4 shadow-sm border border-warning d-flex justify-content-between align-items-center animate__animated animate__fadeIn">
+          <div className="d-flex align-items-center gap-3">
+            <span className="fw-bold text-warning-emphasis">
+              {hasUnsavedChanges ? 'Unsaved Order Changes' : 'Selection Active'}
+            </span>
+            {selectedItemIds.length > 0 && <span className="badge bg-dark">{selectedItemIds.length} Selected</span>}
+          </div>
+          <div className="d-flex gap-2">
+            {selectedItemIds.length > 0 && (
+              <Button color="light" size="sm" onClick={openMoveModal} aria-label="Move selected items"><i className="bi bi-arrow-down-up" aria-hidden="true"></i> Move</Button>
+            )}
+            {hasUnsavedChanges && (
+              <Button color="success" size="sm" onClick={handleSaveOrder} aria-label="Save order changes"><i className="bi bi-check-lg" aria-hidden="true"></i> Save Order</Button>
+            )}
+            <Button color="secondary" size="sm" onClick={() => { setHasUnsavedChanges(false); setLocalInventory([...inventoryData].sort((a, b) => a.sort_order - b.sort_order)); setSelectedItemIds([]); }}>Cancel</Button>
+          </div>
+        </div>
+      )}
 
-      <Row>
-        {inventoryData.map((item) => (
-          <Col key={item.id} md={4} className="mb-4">
-            <Card className="h-100" style={{ backgroundColor: styles.backgroundColor }}>
-              <CardBody>
-                {editableItem === item.id ? (
-                  <>
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <h2 className="h4 m-0 text-dark">Current Inventory</h2>
+        <div className="d-flex gap-2 align-items-center">
+          {/* Sort Controls */}
+          <ButtonGroup className="me-3">
+            <Button outline size="sm" color="secondary" active={sortConfig.key === 'default'} onClick={() => handleSortBy('default')}>
+              Default
+            </Button>
+            <Button outline size="sm" color="secondary" active={sortConfig.key === 'title'} onClick={() => handleSortBy('title')}>
+              Title {sortConfig.key === 'title' && <i className={`bi bi-sort-alpha-${sortConfig.direction === 'asc' ? 'down' : 'up'}`}></i>}
+            </Button>
+            <Button outline size="sm" color="secondary" active={sortConfig.key === 'branch'} onClick={() => handleSortBy('branch')}>
+              Branch {sortConfig.key === 'branch' && <i className={`bi bi-sort-alpha-${sortConfig.direction === 'asc' ? 'down' : 'up'}`}></i>}
+            </Button>
+            <div className="btn-group" role="group">
+              <Button outline size="sm" color="secondary" active={sortConfig.key === 'branch_priority'} onClick={() => handleSortBy('branch_priority')} title="Sort by Custom Branch order">
+                Branch Order {sortConfig.key === 'branch_priority' && <i className={`bi bi-sort-numeric-${sortConfig.direction === 'asc' ? 'down' : 'up'}`}></i>}
+              </Button>
+              <Button outline size="sm" color="secondary" onClick={() => setIsBranchOrderModalOpen(true)} title="Configure Branch Order">
+                <i className="bi bi-gear-fill"></i>
+              </Button>
+            </div>
+          </ButtonGroup>
+
+          {/* Group Toggle */}
+          <div className="form-check form-switch me-3">
+            <Input className="form-check-input" type="checkbox" id="groupSwitch" checked={groupMode} onChange={() => setGroupMode(!groupMode)} />
+            <Label className="form-check-label" for="groupSwitch">Group by Library</Label>
+          </div>
+          <ButtonGroup>
+            <Button 
+              color="light" 
+              active={viewMode === 'grid'} 
+              onClick={() => setViewMode('grid')}
+              title="Grid view - visual overview (no reordering)"
+            >
+              <i className="bi bi-grid-3x3-gap-fill"></i> Grid
+            </Button>
+            <Button 
+              color="light" 
+              active={viewMode === 'list'} 
+              onClick={() => setViewMode('list')}
+              title="List view - allows drag handles and reordering"
+            >
+              <i className="bi bi-list-ul"></i> List
+            </Button>
+          </ButtonGroup>
+          <Button color="primary" onClick={toggleSearchModal}>+ Add Equipment</Button>
+        </div>
+      </div>
+
+      {renderContent()}
+
+      {/* Branch Order Config Modal */}
+      <Modal isOpen={isBranchOrderModalOpen} toggle={() => setIsBranchOrderModalOpen(!isBranchOrderModalOpen)}>
+        <ModalHeader>Configure Branch Order</ModalHeader>
+        <ModalBody>
+          <p className="small text-muted mb-3">Drag items would be ideal, but for now use arrows to set the order of importance.</p>
+          <Table size="sm" hover>
+            <tbody>
+              {customBranchOrder.map((branch, index) => (
+                <tr key={branch.code}>
+                  <td style={{ width: '40px' }} className="text-secondary fw-bold">{index + 1}</td>
+                  <td>{branch.name}</td>
+                  <td className="text-end">
+                    <Button size="sm" color="link" className="p-0 text-decoration-none me-2" onClick={() => moveBranchConfig(index, 'up')} disabled={index === 0}>
+                      <i className="bi bi-arrow-up-circle-fill fs-5 text-secondary"></i>
+                    </Button>
+                    <Button size="sm" color="link" className="p-0 text-decoration-none" onClick={() => moveBranchConfig(index, 'down')} disabled={index === customBranchOrder.length - 1}>
+                      <i className="bi bi-arrow-down-circle-fill fs-5 text-secondary"></i>
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </ModalBody>
+        <ModalFooter>
+          <Button color="primary" onClick={applyBranchOrder}>Apply & Close</Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Move Modal */}
+      <Modal isOpen={isMoveModalOpen} toggle={() => setIsMoveModalOpen(!isMoveModalOpen)}>
+        <ModalHeader>Move {selectedItemIds.length} Items</ModalHeader>
+        <ModalBody>
+          <FormGroup>
+            <Label>Position</Label>
+            <div className="d-flex gap-3 mb-3">
+              <FormGroup check>
+                <Label check>
+                  <Input type="radio" name="pos" checked={movePosition === 'before'} onChange={() => setMovePosition('before')} /> Before
+                </Label>
+              </FormGroup>
+              <FormGroup check>
+                <Label check>
+                  <Input type="radio" name="pos" checked={movePosition === 'after'} onChange={() => setMovePosition('after')} /> After
+                </Label>
+              </FormGroup>
+            </div>
+          </FormGroup>
+          <FormGroup>
+            <Label>Target Item</Label>
+            <Input type="select" value={moveTargetId} onChange={(e) => setMoveTargetId(e.target.value)}>
+              <option value="">Select Item...</option>
+              {localInventory.filter(i => !selectedItemIds.includes(i.id)).map(i => (
+                <option key={i.id} value={i.id}>{i.title}</option>
+              ))}
+            </Input>
+          </FormGroup>
+        </ModalBody>
+        <ModalFooter>
+          <Button color="secondary" onClick={() => setIsMoveModalOpen(false)}>Cancel</Button>
+          <Button color="primary" onClick={handleBatchMove} disabled={!moveTargetId}>Move Items</Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal isOpen={isEditModalOpen} toggle={toggleEditModal} size="lg">
+        <ModalHeader toggle={toggleEditModal}>Edit Item</ModalHeader>
+        <ModalBody>
+          {editableItem && (
+            <Row>
+              <Col md={4} className="text-center mb-3 mb-md-0">
+                <div className="border rounded p-2 bg-light d-flex align-items-center justify-content-center" style={{ height: '200px' }}>
+                  {imageFile ? (
+                    <span className="text-success fw-bold">New Image Selected</span>
+                  ) : imageSrcs[editableItem.id] ? (
+                    <img src={imageSrcs[editableItem.id]} alt="Current" style={{ maxWidth: '100%', maxHeight: '100%' }} />
+                  ) : (<span className="text-muted">No Current Image</span>)}
+                </div>
+                <div className="mt-2">
+                  <Label className="btn btn-sm btn-outline-secondary w-100" style={{ cursor: 'pointer' }}>
+                    Upload New Image
+                    <Input type="file" hidden onChange={handleImageChange} accept="image/*" />
+                  </Label>
+                </div>
+              </Col>
+              <Col md={8}>
+                <FormGroup>
+                  <Label>Title</Label>
+                  <Input name="title" value={formData.title || ''} onChange={handleInputChange} />
+                </FormGroup>
+                <FormGroup>
+                  <Label for="itemDescription">Description</Label>
+                  <div id="item-description-editor">
+                    <ReactQuill
+                      theme="snow"
+                      value={formData.description || ''}
+                      onChange={handleDescriptionChange}
+                      modules={quillModules}
+                      formats={quillFormats}
+                      placeholder="Enter item description with formatting and links..."
+                      style={{ backgroundColor: 'white', borderRadius: '4px' }}
+                      aria-labelledby="itemDescription"
+                    />
+                  </div>
+                  <small className="text-muted d-block mt-1">
+                    <i className="bi bi-info-circle me-1"></i>
+                    Use the toolbar to format text and add hyperlinks
+                  </small>
+                </FormGroup>
+                <Row>
+                  <Col md={12}>
                     <FormGroup>
-                      <Label for="title">Title</Label>
-                      <Input
-                        name="title"
-                        defaultValue={item.title}
-                        onChange={(e) => handleInputChange(e, item)}
-                        style={{ color: styles.titleColor }}
-                      />
-                    </FormGroup>
-                    <FormGroup>
-                      <Label for="description">Description</Label>
-                      <Input
-                        type="textarea"
-                        name="description"
-                        defaultValue={item.description}
-                        onChange={(e) => handleInputChange(e, item)}
-                        style={{ color: styles.descriptionColor }}
-                      />
-                    </FormGroup>
-                    <FormGroup>
-                      <Label for="sort_order">Sort Order</Label>
-                      <Input
-                        name="sort_order"
-                        type="number"
-                        defaultValue={item.sort_order}
-                        onChange={(e) => handleInputChange(e, item)}
-                      />
-                    </FormGroup>
-                    <FormGroup>
-                      <Label for="timestamp">Timestamp</Label>
-                      <Input
-                        name="timestamp"
-                        type="datetime-local"
-                        defaultValue={item.timestamp}
-                        onChange={(e) => handleInputChange(e, item)}
-                      />
-                    </FormGroup>
-                    <FormGroup>
-                      <Label for="folio_id">Folio ID</Label>
-                      <Input
-                        name="folio_id"
-                        defaultValue={item.folio_id}
-                        onChange={(e) => handleInputChange(e, item)}
-                      />
-                    </FormGroup>
-                    <FormGroup>
-                      <Label for="aleph_id">Aleph ID</Label>
-                      <Input
-                        name="aleph_id"
-                        defaultValue={item.aleph_id}
-                        onChange={(e) => handleInputChange(e, item)}
-                      />
-                    </FormGroup>
-                    <FormGroup>
-                      <Label for="owner">Owner</Label>
-                      <Input
-                        type="select"
-                        name="owner"
-                        defaultValue={item.owner}
-                        onChange={(e) => handleInputChange(e, item)}
-                      >
-                        <option value="MHC">Mount Holyoke</option>
-                        <option value="SMC">Smith College</option>
-                        <option value="AMH">Amherst College</option>
-                        <option value="HMC">Hampshire College</option>
-                        <option value="UMA">UMass Amherst</option>
+                      <Label>Owner</Label>
+                      <Input type="select" name="owner" value={formData.owner || mapLocations || ''} onChange={handleInputChange}>
+                        {institutions.map((institution) => (
+                          <option key={institution.code} value={institution.code}>
+                            {institution.name}
+                          </option>
+                        ))}
                       </Input>
                     </FormGroup>
+                    <small className="text-muted">
+                      <i className="bi bi-info-circle me-1"></i>
+                      To reorder items, use the up/down arrows in list view
+                    </small>
+                  </Col>
+                  <Col md={12}>
                     <FormGroup>
-                      <Label for="image">Change Image (2mb size limit)</Label>
-                      <Input
-                        type="file"
-                        onChange={(e) => handleImageChange(e, item)}
-                      />
-                      {/* Show current image */}
-                      {imageSrcs[item.id] && (
-                        <img
-                          src={imageSrcs[item.id]}
-                          alt={item.title}
-                          style={{ width: '100%', marginTop: '10px' }}
-                        />
+                      <Label>Branch Locations</Label>
+                      {/* Display selected branches */}
+                      {formData.branches && formData.branches.length > 0 && (
+                        <div className="mb-2 d-flex flex-wrap gap-1">
+                          {formData.branches.map((branchCode) => (
+                            <span key={branchCode} className="badge bg-primary d-inline-flex align-items-center gap-1 py-2 px-3">
+                              {getBranchName(branchCode)}
+                              <button
+                                type="button"
+                                className="btn btn-link badge-remove-button p-0 text-white"
+                                onClick={() => handleRemoveBranch(branchCode)}
+                                title={`Remove ${getBranchName(branchCode)}`}
+                                aria-label={`Remove ${getBranchName(branchCode)}`}
+                              >
+                                <i className="bi bi-x-circle" aria-hidden="true"></i>
+                              </button>
+                            </span>
+                          ))}
+                        </div>
                       )}
+                      {/* Add branch selector */}
+                      <SearchableSelect
+                        options={filteredBranches.filter(b => !formData.branches.includes(b.code))}
+                        value=""
+                        onChange={handleBranchChange}
+                        placeholder="Add a branch..."
+                        idField="code"
+                      />
+                      <small className="text-muted">Select multiple branch locations for this item</small>
                     </FormGroup>
-                    <Button color="success" onClick={() => handleUpdate(item)}>Save</Button>
-                    <Button color="secondary" onClick={() => setEditableItem(null)}>Cancel</Button>
-                  </>
-                ) : (
-                  <>
-                    <CardTitle tag="h5" style={{ color: styles.titleColor }}>
-                      {item.title}
-                    </CardTitle>
-                    <CardText style={{ color: styles.descriptionColor }}>
-                      {item.description}
-                    </CardText>
-                    {/* Show current image */}
-                    {imageSrcs[item.id] && (
-                      <img
-                        src={imageSrcs[item.id]}
-                        alt={item.title}
-                        style={{ width: '100%', marginTop: '10px' }}
-                      />
-                    )}
-                    <Button color="primary" onClick={() => setEditableItem(item.id)}>Edit</Button>
-                    <Button color="danger" onClick={() => handleDelete(item)}>Delete</Button>
-                  </>
-                )}
-              </CardBody>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-       {/* Modal for adding new item */}
-       <Modal isOpen={isSearchModalOpen} toggle={toggleSearchModal} size="xl">
-      <ModalHeader toggle={toggleSearchModal}>Search and Add Inventory</ModalHeader>
-      <ModalBody>
-        <Row>
-          <Col md={8}>
-            <FormGroup>
-              <Label for="search">Search</Label>
-              <Input
-                type="text"
-                name="search"
-                id="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Enter title or HRID..."
-              />
-            </FormGroup>
-          </Col>
-          <Col md={4}>
-            <FormGroup>
-              <Label for="searchType">Search Type</Label>
-              <Input
-                type="select"
-                name="searchType"
-                id="searchType"
-                value={searchType}
-                onChange={(e) => setSearchType(e.target.value)}
-              >
-                <option value="title">Title</option>
-                <option value="hrid">HRID</option>
-                <option value="location">Location</option>
-              </Input>
-            </FormGroup>
-            {searchType === 'location' && (
-              <FormGroup>
-                <Label for="location">Location</Label>
-                <Input
-                  type="select"
-                  name="location"
-                  id="location"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                >
-                  {effectiveLocations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.name}
-                    </option>
-                  ))}
-                </Input>
-              </FormGroup>
-            )}
-          </Col>
-        </Row>
-        <Button color="primary" onClick={handleSearch}>Search</Button>{' '}
-        <Button color="secondary" onClick={handleClear}>Clear</Button>
+                  </Col>
+                </Row>
+              </Col>
+            </Row>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button color="secondary" onClick={toggleEditModal}>Cancel</Button>
+          <Button color="success" onClick={handleUpdate}>Save Changes</Button>
+        </ModalFooter>
+      </Modal>
 
-        {/* Display Search Results */}
-        {searchResults.length > 0 && (
-          <Table hover>
-              <thead>
-                <tr>
-                  <th>Select</th>
-                  <th>Title</th>
-                  <th>HRID</th>
-                  <th>FOLIO ID</th>
-                  <th>Description</th>
-                  <th>Image</th>
-                </tr>
-              </thead>
-              <tbody>
-                {searchResults.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <Input
-                        type="checkbox"
-                        onChange={() => handleSelectItem(item)}
-                        checked={!!selectedItemsData[item.id]?.selected}
-                      />
-                    </td>
-                    <td>{item.title}</td>
-                    <td>{item.hrid}</td>
-                    <td>{item.id}</td>
-                    <td>
-                      <Input
-                        type="textarea"
-                        value={selectedItemsData[item.id]?.description || ''}
-                        onChange={(e) => handleDescriptionChange(e, item)}
-                        disabled={!selectedItemsData[item.id]?.selected}
-                      />
-                    </td>
-                    <td>
-                    <Input
-                      type="file"
-                      onChange={(e) => handleBatchImageChange(e, item)}
-                      disabled={!selectedItemsData[item.id]?.selected}
-                    />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-          </Table>
-        )}
-      </ModalBody>
-      <ModalFooter>
-        <Button color="primary" onClick={handleBatchUpload}>Add Selected Items</Button>
-        <Button color="secondary" onClick={toggleSearchModal}>Cancel</Button>
-      </ModalFooter>
-    </Modal>
-    </>
+      {/* Add Modal */}
+      <AddItemModal
+        isOpen={isSearchModalOpen}
+        toggle={toggleSearchModal}
+        baseUrl={baseUrl}
+        token={token}
+        mapLocations={mapLocations}
+        refreshInventory={refreshInventory}
+        filteredBranches={filteredBranches}
+        locations={configuredLocations}
+      />
+    </div>
   );
 }
 
-export default InventoryTab;
-
-
 InventoryTab.propTypes = {
-  inventoryData: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.number.isRequired,
-      title: PropTypes.string.isRequired,
-      description: PropTypes.string,
-      sort_order: PropTypes.number,
-      timestamp: PropTypes.string,
-      folio_id: PropTypes.string.isRequired,
-      aleph_id: PropTypes.string,
-      owner: PropTypes.string,
-    })
-  ).isRequired,
-  styles: PropTypes.shape({
-    backgroundColor: PropTypes.string.isRequired,
-    titleColor: PropTypes.string.isRequired,
-    descriptionColor: PropTypes.string.isRequired,
-  }).isRequired,
+  inventoryData: PropTypes.array.isRequired,
+  styles: PropTypes.object.isRequired,
   baseUrl: PropTypes.string.isRequired,
   token: PropTypes.string.isRequired,
   refreshInventory: PropTypes.func.isRequired,
-  setLocalInventoryData: PropTypes.func.isRequired,
+  mapLocations: PropTypes.string,
 };
+
+// Note: SortableRow is defined inside InventoryTab to access closures
+
+export default InventoryTab;

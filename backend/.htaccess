@@ -1,0 +1,10 @@
+Options -Indexes
+# Deny access to configuration files
+<FilesMatch "\.(yml|yaml|ini|log|conf|config|sql|sh|bat|json|lock|xml|db|sqlite)$">
+    Require all denied
+</FilesMatch>
+
+# Deny access to hidden files and directories (those starting with a dot)
+RedirectMatch 404 /\.git
+RedirectMatch 404 /\.svn
+RedirectMatch 404 /.*\.md

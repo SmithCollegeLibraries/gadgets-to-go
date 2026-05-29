@@ -11,6 +11,13 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+.playwright-mcp/
+suma_dump*.sql
+backend/images/*
+!backend/images/placeholder.png
 
 # Editor directories and files
 .vscode/*
