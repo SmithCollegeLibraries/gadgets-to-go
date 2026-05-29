@@ -63,35 +63,7 @@ class FOLIO extends Model
      */
     private function authenticate()
     {
-        if (($this->config['authMode'] ?? 'okapi-token') === 'login-with-expiry') {
-            return $this->authenticateWithExpiryCookie();
-        }
-
-        $response = $this->client->createRequest()
-            ->setUrl('/authn/login')
-            ->setMethod('POST')
-            ->setFormat(Client::FORMAT_JSON)
-            ->addHeaders($this->getHeaders())
-            ->setData([
-                'username' => $this->config['username'],
-                'password' => $this->config['password'],
-            ])
-            ->send();
-
-        if ($response->isOk) {
-            $token = $response->getHeaders()->get('x-okapi-token');
-            if ($token) {
-                // Store token in cache for reuse
-                Yii::$app->cache->set('x-okapi-token', $token, 3600); // Token cached for 1 hour
-                return $token;
-            } else {
-                Yii::error("Authentication failed: Token not received", __METHOD__);
-                throw new Exception('Authentication failed: Token not received');
-            }
-        } else {
-            Yii::error('Authentication failed with status ' . $response->getStatusCode(), __METHOD__);
-            throw new Exception('FOLIO authentication failed.');
-        }
+        return $this->authenticateWithExpiryCookie();
     }
 
     private function authenticateWithExpiryCookie()
@@ -136,16 +108,31 @@ class FOLIO extends Model
             throw new Exception('FOLIO authentication failed.');
         }
 
-        $rawHeaders = substr($fullResponse, 0, $headerSize);
-        foreach (explode("\r\n", $rawHeaders) as $line) {
-            if (stripos($line, 'set-cookie:') === 0 && preg_match('/folioAccessToken=([^;]+)/', $line, $matches)) {
-                Yii::$app->cache->set($this->tokenCacheKey(), $matches[1], 3600);
-                return $matches[1];
-            }
+        $accessToken = self::extractFolioAccessToken(substr($fullResponse, 0, $headerSize));
+        if ($accessToken) {
+            Yii::$app->cache->set($this->tokenCacheKey(), $accessToken, 3600);
+            return $accessToken;
         }
 
         Yii::error('FOLIO login-with-expiry did not return folioAccessToken cookie.', __METHOD__);
         throw new Exception('FOLIO authentication failed.');
+    }
+
+    public static function extractFolioAccessToken($rawHeaders)
+    {
+        $cookies = [];
+        foreach (preg_split("/\r\n|\n|\r/", (string)$rawHeaders) as $line) {
+            if (stripos($line, 'set-cookie:') === 0) {
+                $cookies[] = trim(substr($line, 11));
+            }
+        }
+
+        $combined = implode('; ', $cookies);
+        if (preg_match('/folioAccessToken=([^;]+)/', $combined, $matches)) {
+            return $matches[1];
+        }
+
+        return false;
     }
 
     /**
@@ -230,41 +217,17 @@ class FOLIO extends Model
         return $endpoints[$type] ?? '/search/instances';
     }
 
-    /**
-     * Constructs the headers for API requests.
-     *
-     * @param string|null $token The authentication token, if available.
-     * @return array The headers.
-     */
-    private function getHeaders($token = null)
-    {
-        $headers = [
-            'x-okapi-tenant' => $this->config['tenantId'],
-            'Content-Type'   => 'application/json',
-        ];
-
-        if ($token) {
-            $headers['x-okapi-token'] = $token;
-        }
-
-        return $headers;
-    }
-
     private function getAuthenticatedHeaders($token)
     {
-        if (($this->config['authMode'] ?? 'okapi-token') === 'login-with-expiry') {
-            return [
-                'x-okapi-tenant' => $this->config['tenantId'],
-                'Content-Type'   => 'application/json',
-                'Cookie'         => 'folioAccessToken=' . $token,
-            ];
-        }
-
-        return $this->getHeaders($token);
+        return [
+            'x-okapi-tenant' => $this->config['tenantId'],
+            'Content-Type'   => 'application/json',
+            'Cookie'         => 'folioAccessToken=' . $token,
+        ];
     }
 
     private function tokenCacheKey()
     {
-        return 'folio-token:' . ($this->config['authMode'] ?? 'okapi-token') . ':' . ($this->config['tenantId'] ?? '');
+        return 'folio-access-token:' . ($this->config['tenantId'] ?? '');
     }
 }

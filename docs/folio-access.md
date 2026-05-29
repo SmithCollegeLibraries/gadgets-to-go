@@ -49,7 +49,7 @@ FOLIO_USERNAME
 FOLIO_PASSWORD
 ```
 
-It posts to `/authn/login`, caches the returned `x-okapi-token`, and then searches `/search/instances`.
+It posts to `/authn/login-with-expiry`, extracts the `folioAccessToken` value from the returned `Set-Cookie` headers, caches that access token, and then searches `/search/instances` with a `Cookie: folioAccessToken=...` header.
 
 Example FOLIO inventory API base:
 
