@@ -295,10 +295,13 @@ Gadgets-to-Go has two separate integration paths:
 Configure these in `.env`:
 
 ```env
+# Used only for FOLIO API/Okapi inventory search.
 FOLIO_USERNAME=folio-service-user
 FOLIO_PASSWORD=change-me
-FOLIO_API_KEY=edge-api-key
 FOLIO_TENANT_ID=tenant-id
+
+# Used only for EBSCO Edge RTAC real-time availability.
+FOLIO_API_KEY=edge-rtac-api-key
 
 # EBSCO Edge RTAC base for real-time availability.
 FOLIO_AVAILABILITY_BASE_URL=https://edge-example.folio.ebsco.com
@@ -307,6 +310,12 @@ FOLIO_AVAILABILITY_BASE_URL=https://edge-example.folio.ebsco.com
 FOLIO_INVENTORY_BASE_URL=https://api-example.folio.ebsco.com
 
 FOLIO_RTAC_BASE_PATH=/prod/rtac/folioRTAC?mms_id=
+```
+
+The MMS ID is not configured in `.env`. The frontend sends the item identifier to `/api/inventory/get-folio?id=<mms_id>`, and the backend builds the RTAC URL as:
+
+```text
+FOLIO_AVAILABILITY_BASE_URL + FOLIO_RTAC_BASE_PATH + <mms_id> + "&apikey=" + FOLIO_API_KEY
 ```
 
 Five Colleges deployments can still use this pattern, but it is an institution-specific example rather than a package default:
