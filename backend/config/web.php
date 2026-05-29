@@ -34,6 +34,15 @@ $config = [
         'response' => [
             'on beforeSend' => function ($event) {
                 $headers = $event->sender->headers;
+                $origin = \Yii::$app->request->headers->get('Origin');
+                $allowedOrigins = \Yii::$app->params['cors']['Origin'] ?? [];
+                if ($origin && (in_array('*', $allowedOrigins, true) || in_array($origin, $allowedOrigins, true))) {
+                    $headers->set('Access-Control-Allow-Origin', $origin);
+                    $headers->set('Access-Control-Allow-Credentials', 'true');
+                    $headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+                    $headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+                    $headers->set('Vary', 'Origin');
+                }
                 $headers->set('X-Content-Type-Options', 'nosniff');
                 $headers->set('Referrer-Policy', \backend\components\AppConfig::env('REFERRER_POLICY', 'strict-origin-when-cross-origin'));
                 $headers->set('Permissions-Policy', \backend\components\AppConfig::env('PERMISSIONS_POLICY', 'camera=(), microphone=(), geolocation=()'));
