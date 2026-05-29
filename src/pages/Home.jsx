@@ -5,7 +5,7 @@ import useSchoolStore from '../store/schoolStore';
 import './Home.css'; // Specific styles for the home page
 
 const Home = () => {
-    const { appConfig, fetchLayoutData, loadConfig } = useSchoolStore();
+    const { appConfig, configLoaded, fetchLayoutData, loadConfig } = useSchoolStore();
     const schools = appConfig.institutions || [];
     const deployment = appConfig.deployment || {};
     const primarySlug = deployment.primaryInstitutionSlug || schools[0]?.slug;
@@ -19,6 +19,17 @@ const Home = () => {
                 console.error('Unable to load application configuration', error);
             });
     }, [fetchLayoutData, loadConfig]);
+
+    if (!configLoaded) {
+        return (
+            <main className="home-container" role="status" aria-live="polite">
+                <div className="hero-section">
+                    <h1 className="main-title">{appConfig.appName || 'Library Equipment'}</h1>
+                    <p className="subtitle">Loading configuration...</p>
+                </div>
+            </main>
+        );
+    }
 
     if (deployment.type === 'single-library' && deployment.homePage === 'redirect' && primarySlug) {
         return <Navigate to={`/school/${primarySlug}`} replace />;
