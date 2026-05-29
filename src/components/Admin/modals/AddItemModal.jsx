@@ -47,7 +47,10 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
         else if (searchType === 'location') query = `(items.effectiveLocationId=="${location}")`;
 
         try {
-            const response = await axios.get(`${baseUrl}/inventory/inventory-search`, { params: { query } });
+            const response = await axios.get(`${baseUrl}/inventory/inventory-search`, {
+                params: { query },
+                headers: { Authorization: `Bearer ${token}` },
+            });
             setSearchResults(response.data?.instances || response.data?.data?.instances || []);
         } catch (error) {
             console.error(error);

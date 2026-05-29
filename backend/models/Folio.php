@@ -49,6 +49,11 @@ class FOLIO extends Model
      */
     public function inventorySearch($query, $type)
     {
+        $this->debug('inventory-search.start', [
+            'queryLength' => strlen((string)$query),
+            'type' => $type,
+        ]);
+
         $token = $this->getToken();
 
         $endpoint = $this->getEndpoint($type);
@@ -74,6 +79,14 @@ class FOLIO extends Model
         }
 
         $url = rtrim($this->config['folioBaseUrl'], '/') . '/authn/login-with-expiry';
+        $this->debug('auth.start', [
+            'baseUrl' => $this->config['folioBaseUrl'] ? $this->config['folioBaseUrl'] : 'missing',
+            'tenantConfigured' => $this->config['tenantId'] !== '',
+            'usernameConfigured' => $this->config['username'] !== '',
+            'passwordConfigured' => $this->config['password'] !== '',
+            'endpoint' => '/authn/login-with-expiry',
+        ]);
+
         $postData = json_encode([
             'username' => $this->config['username'],
             'password' => $this->config['password'],
@@ -94,7 +107,9 @@ class FOLIO extends Model
 
         $fullResponse = curl_exec($ch);
         if ($fullResponse === false) {
-            Yii::error('FOLIO login-with-expiry cURL error: ' . curl_error($ch), __METHOD__);
+            $curlError = curl_error($ch);
+            Yii::error('FOLIO login-with-expiry cURL error: ' . $curlError, __METHOD__);
+            $this->debug('auth.curl-error', ['error' => $curlError]);
             curl_close($ch);
             throw new Exception('FOLIO authentication failed.');
         }
@@ -103,12 +118,19 @@ class FOLIO extends Model
         $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         curl_close($ch);
 
+        $rawHeaders = substr($fullResponse, 0, $headerSize);
+        $accessToken = self::extractFolioAccessToken($rawHeaders);
+        $this->debug('auth.response', [
+            'statusCode' => $statusCode,
+            'setCookieHeaderPresent' => stripos($rawHeaders, 'set-cookie:') !== false,
+            'folioAccessTokenCookiePresent' => $accessToken !== false,
+        ]);
+
         if ($statusCode < 200 || $statusCode >= 300) {
             Yii::error('FOLIO login-with-expiry failed with status ' . $statusCode, __METHOD__);
             throw new Exception('FOLIO authentication failed.');
         }
 
-        $accessToken = self::extractFolioAccessToken(substr($fullResponse, 0, $headerSize));
         if ($accessToken) {
             Yii::$app->cache->set($this->tokenCacheKey(), $accessToken, 3600);
             return $accessToken;
@@ -144,6 +166,7 @@ class FOLIO extends Model
     private function getToken()
     {
         $token = Yii::$app->cache->get($this->tokenCacheKey());
+        $this->debug('auth.cache', ['hit' => (bool)$token]);
         if (!$token) {
             $token = $this->authenticate();
         }
@@ -161,6 +184,13 @@ class FOLIO extends Model
      */
     private function modSearch($query, $endpoint, $token)
     {
+        $this->debug('inventory-request.start', [
+            'baseUrl' => $this->config['folioBaseUrl'] ? $this->config['folioBaseUrl'] : 'missing',
+            'endpoint' => $endpoint,
+            'tenantConfigured' => $this->config['tenantId'] !== '',
+            'accessTokenConfigured' => $token !== '',
+        ]);
+
         $response = $this->client->createRequest()
             ->setMethod('GET')
             ->setUrl($endpoint)
@@ -170,6 +200,11 @@ class FOLIO extends Model
             ])
             ->setHeaders($this->getAuthenticatedHeaders($token))
             ->send();
+
+        $this->debug('inventory-request.response', [
+            'statusCode' => $response->getStatusCode(),
+            'ok' => $response->isOk,
+        ]);
 
         if ($response->isOk) {
             return $response->data;
@@ -229,5 +264,14 @@ class FOLIO extends Model
     private function tokenCacheKey()
     {
         return 'folio-access-token:' . ($this->config['tenantId'] ?? '');
+    }
+
+    private function debug($event, array $context = [])
+    {
+        if (getenv('FOLIO_DEBUG') !== 'true') {
+            return;
+        }
+
+        Yii::info('FOLIO debug ' . $event . ' ' . json_encode($context), __METHOD__);
     }
 }
