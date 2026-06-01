@@ -90,18 +90,20 @@ Change these with `LOCAL_ADMIN_USERNAME`, `LOCAL_ADMIN_PASSWORD`, and `LOCAL_ADM
 ## First Institution Setup Path
 
 1. Start Docker with `docker compose up --build`.
-2. Open `/setup-config` only while generating configuration snippets.
-3. Save institution YAML to `backend/config/institutions.yml`.
-4. Save runtime secrets and service URLs to `.env`; never commit this file.
-5. Log in with the bootstrap local admin.
-6. Create a named local system administrator.
-7. Set `LOCAL_ADMIN_ENABLED=false` and restart the backend.
-8. Open Admin > Setup Health and resolve failures.
-9. Test FOLIO inventory search.
-10. Test RTAC availability.
-11. Test local auth or Shibboleth.
-12. Place institution images in `public/images` and reference them from YAML as `/images/name.png`.
-13. Move to shared staging only after Setup Health has no failures.
+2. Set `VITE_ENABLE_SETUP_CONFIG=true` in `.env` and restart or rebuild the frontend.
+3. Open `/setup-config` only while generating configuration snippets.
+4. Save institution YAML to `backend/config/institutions.yml`.
+5. Save runtime secrets and service URLs to `.env`; never commit this file.
+6. Set `VITE_ENABLE_SETUP_CONFIG=false` and restart or rebuild the frontend.
+7. Log in with the bootstrap local admin.
+8. Create a named local system administrator.
+9. Set `LOCAL_ADMIN_ENABLED=false` and restart the backend.
+10. Open Admin > Setup Health and resolve failures.
+11. Test FOLIO inventory search.
+12. Test RTAC availability.
+13. Test local auth or Shibboleth.
+14. Place institution images in `public/images` and reference them from YAML as `/images/name.png`.
+15. Move to shared staging only after Setup Health has no failures.
 
 ## Configuration Files
 
@@ -584,7 +586,7 @@ Run Setup Health before moving from local testing to shared staging. Shared stag
 
 ### Known Frontend Advisory
 
-`npm audit` currently reports a low-severity advisory for Quill through `react-quill-new`. Saved rich text is sanitized by the Yii backend with HTML Purifier before persistence, which reduces exposure for stored content but is not a substitute for applying dependency updates. Treat this as a tracked dependency update: apply a non-breaking update when one is available and re-run lint/build before distribution.
+If `npm audit` reports a low-severity advisory for Quill through `react-quill-new`, treat it as a tracked dependency update. Saved rich text is sanitized by the Yii backend with HTML Purifier before persistence, which reduces exposure for stored content but is not a substitute for applying dependency updates. Apply a non-breaking update when one is available and re-run lint/build before distribution.
 
 ## Troubleshooting
 
