@@ -77,6 +77,20 @@ class SetupPreflightTest extends Unit
         $this->assertSame('fail', $this->findItem($this->checker()->run(), 'app-secret')['severity']);
     }
 
+    public function testPackagedPlaceholderAppSecretsProduceFailure()
+    {
+        $this->setSecureEnv();
+
+        foreach ([
+            'change-me-to-a-long-random-secret-at-least-32-bytes',
+            'change-me-local-development-secret-at-least-32-bytes',
+            'replace-with-a-long-random-secret-at-least-32-bytes',
+        ] as $secret) {
+            putenv('APP_SECRET_KEY=' . $secret);
+            $this->assertSame('fail', $this->findItem($this->checker()->run(), 'app-secret')['severity']);
+        }
+    }
+
     public function testMissingCorsOriginsProducesFailure()
     {
         $this->setSecureEnv();

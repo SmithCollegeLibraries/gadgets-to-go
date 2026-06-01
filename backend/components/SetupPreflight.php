@@ -57,7 +57,7 @@ class SetupPreflight
     private function checkAppSecret()
     {
         $secret = AppConfig::env('APP_SECRET_KEY', '');
-        if ($secret === '' || $secret === 'change-me-in-production-use-at-least-32-bytes' || strlen($secret) < 32) {
+        if ($this->isDefaultLikeAppSecret($secret)) {
             return $this->item(
                 'app-secret',
                 'fail',
@@ -74,6 +74,30 @@ class SetupPreflight
             'APP_SECRET_KEY is configured.',
             'APP_SECRET_KEY'
         );
+    }
+
+    private function isDefaultLikeAppSecret($secret)
+    {
+        if ($secret === '' || strlen($secret) < 32) {
+            return true;
+        }
+
+        $normalized = strtolower($secret);
+        $defaultFragments = [
+            'change-me',
+            'local-development',
+            'replace-with',
+            'example',
+            'default',
+        ];
+
+        foreach ($defaultFragments as $fragment) {
+            if (strpos($normalized, $fragment) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function checkCorsOrigins()
