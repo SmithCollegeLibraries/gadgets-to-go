@@ -10,9 +10,7 @@ class UserTest extends \Codeception\Test\Unit
 {
     public function testFindUserById()
     {
-        expect_that($user = User::findIdentity(100));
-        expect($user->username)->equals('admin');
-
+        expect_not(User::findIdentity(100));
         expect_not(User::findIdentity(999));
     }
 
@@ -23,29 +21,35 @@ class UserTest extends \Codeception\Test\Unit
             'exp' => time() + 300,
         ], Yii::$app->params['jwtSecretKey'], 'HS256');
 
-        expect_that($user = User::findIdentityByAccessToken($token));
-        expect($user->username)->equals('admin');
+        expect_not(User::findIdentityByAccessToken($token));
 
         expect_not(User::findIdentityByAccessToken('non-existing'));        
     }
 
     public function testFindUserByUsername()
     {
-        expect_that($user = User::findByUsername('admin'));
+        expect_not(User::findByUsername('admin'));
+        expect_not(User::findByUsername('demo'));
         expect_not(User::findByUsername('not-admin'));
     }
 
-    /**
-     * @depends testFindUserByUsername
-     */
-    public function testValidateUser($user)
+    public function testLegacyDemoUserCannotAuthenticate()
     {
-        $user = User::findByUsername('admin');
-        expect_that($user->validateAuthKey('test100key'));
-        expect_not($user->validateAuthKey('test102key'));
+        $this->assertNull(User::findByUsername('admin'));
+        $this->assertNull(User::findByUsername('demo'));
+        $this->assertNull(User::findIdentityByAccessToken('100-token'));
+        $this->assertNull(User::findIdentityByAccessToken('101-token'));
+    }
 
-        expect_that($user->validatePassword('admin'));
-        expect_not($user->validatePassword('123456'));        
+    public function testValidatePasswordNeverAcceptsLegacyCredentials()
+    {
+        $user = new User([
+            'username' => 'admin',
+            'password' => 'admin',
+        ]);
+
+        expect_not($user->validatePassword('admin'));
+        expect_not($user->validatePassword('demo'));
     }
 
 }
