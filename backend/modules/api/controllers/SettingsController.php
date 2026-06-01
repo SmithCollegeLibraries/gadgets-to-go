@@ -3,9 +3,11 @@
 namespace backend\modules\api\controllers;
 
 use Yii;
+use backend\components\SetupPreflight;
 use yii\rest\Controller;
 use yii\web\Response;
 use yii\web\BadRequestHttpException;
+use yii\web\ForbiddenHttpException;
 use yii\web\ServerErrorHttpException;
 use app\models\DisabledItem;
 use yii\filters\Cors;
@@ -36,11 +38,11 @@ class SettingsController extends Controller
         // Access control
         $behaviors['access'] = [
             'class' => \yii\filters\AccessControl::class,
-            'only' => ['save-disabled-items'],
+            'only' => ['save-disabled-items', 'preflight'],
             'rules' => [
                 [
                     'allow' => true,
-                    'actions' => ['save-disabled-items'],
+                    'actions' => ['save-disabled-items', 'preflight'],
                     'roles' => ['@'], // Authenticated users only
                 ],
             ],
@@ -74,6 +76,22 @@ class SettingsController extends Controller
             'branches' => $branches,
             'locations' => $locations,
         ];
+    }
+
+    /**
+     * GET /api/settings/preflight
+     * Retrieves deployment setup health checks for system administrators.
+     *
+     * @return array Setup preflight summary and check groups
+     * @throws ForbiddenHttpException If the current user is not a system admin
+     */
+    public function actionPreflight()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+        $this->requireSystemAdmin();
+
+        $checker = new SetupPreflight(Yii::$app->params['appConfig']);
+        return $checker->run();
     }
 
     /**
@@ -179,6 +197,14 @@ class SettingsController extends Controller
             WHERE location IS NOT NULL AND location != ""
             ORDER BY location ASC
         ')->queryColumn();
+    }
+
+    private function requireSystemAdmin()
+    {
+        $identity = Yii::$app->user->identity;
+        if ($identity === null || !isset($identity->role) || $identity->role !== 'system-admin') {
+            throw new ForbiddenHttpException('System administrator access is required.');
+        }
     }
 
 }

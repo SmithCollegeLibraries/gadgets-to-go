@@ -197,6 +197,7 @@ $config = [
                     'controller' => ['api/settings'],
                     'pluralize' => false,
                     'extraPatterns' => [
+                        'GET preflight' => 'preflight',
                         'GET disabled-items' => 'disabled-items',
                         'POST disabled-items' => 'save-disabled-items',
                     ],
