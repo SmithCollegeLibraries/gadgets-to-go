@@ -40,6 +40,15 @@ class SettingsControllerTest extends Unit
         $this->assertTrue(true);
     }
 
+    public function testRequireSystemAdminAllowsSuperAdmin()
+    {
+        Yii::$app->user->switchIdentity($this->identityWithRole('super-admin'));
+
+        $this->invokeRequireSystemAdmin();
+
+        $this->assertTrue(true);
+    }
+
     public function testBehaviorsKeepDisabledItemsPublicAndPreflightAuthenticated()
     {
         $behaviors = $this->controller()->behaviors();

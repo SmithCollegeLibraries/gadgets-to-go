@@ -202,7 +202,7 @@ class SettingsController extends Controller
     private function requireSystemAdmin()
     {
         $identity = Yii::$app->user->identity;
-        if ($identity === null || !isset($identity->role) || $identity->role !== 'system-admin') {
+        if ($identity === null || !isset($identity->role) || !in_array($identity->role, ['super-admin', 'system-admin'], true)) {
             throw new ForbiddenHttpException('System administrator access is required.');
         }
     }
