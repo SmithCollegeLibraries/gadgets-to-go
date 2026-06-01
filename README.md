@@ -370,6 +370,8 @@ For Shibboleth deployments:
 VITE_AUTH_URL=https://your-backend.example.edu/admin/authorize.php
 ```
 
+In Docker and standard Apache deployments, `VITE_AUTH_URL` points at the public `backend/web/admin/authorize.php` front controller. That file loads the shared implementation from `backend/admin/authorize-common.php`, so Shibboleth server variables and institution-specific attribute mapping stay centralized.
+
 3. Set public frontend and logout URLs:
 
 ```env
