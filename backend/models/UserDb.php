@@ -126,4 +126,17 @@ class UserDb extends \yii\db\ActiveRecord
         $this->password_reset_token_hash = null;
         $this->password_reset_expires_at = null;
     }
+
+    public function applyLocalBootstrapDefaults(array $defaults, $password)
+    {
+        $this->email = isset($defaults['email']) ? $defaults['email'] : $this->email;
+        $this->full_name = isset($defaults['fullName']) ? $defaults['fullName'] : $this->full_name;
+        $this->department = 'Administration';
+        $this->institution = isset($defaults['institution']) ? $defaults['institution'] : '';
+        $this->role = isset($defaults['role']) ? $defaults['role'] : 'system-admin';
+        $this->approved = 1;
+        $this->auth_provider = 'local';
+        $this->setPassword($password);
+        $this->last_login_at = gmdate('Y-m-d H:i:s');
+    }
 }

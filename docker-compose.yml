@@ -42,7 +42,8 @@ services:
       LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:-admin}
       LOCAL_ADMIN_EMAIL: ${LOCAL_ADMIN_EMAIL:-admin@example.edu}
       LOCAL_ADMIN_NAME: ${LOCAL_ADMIN_NAME:-Local Administrator}
-      LOCAL_ADMIN_INSTITUTION: ${LOCAL_ADMIN_INSTITUTION:-local}
+      LOCAL_ADMIN_INSTITUTION: ${LOCAL_ADMIN_INSTITUTION:-}
+      LOCAL_ADMIN_ROLE: ${LOCAL_ADMIN_ROLE:-system-admin}
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
       MAIL_FROM: no-reply@example.edu

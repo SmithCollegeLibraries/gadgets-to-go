@@ -53,6 +53,25 @@ class UserDbCredentialTest extends Unit
         $this->assertArrayNotHasKey('password_reset_token_hash', $fields);
         $this->assertArrayNotHasKey('password_reset_expires_at', $fields);
     }
+
+    public function testBootstrapAdminDefaultsToSystemAdmin()
+    {
+        $user = new TestableUserDb();
+        $user->username = 'admin';
+
+        $user->applyLocalBootstrapDefaults([
+            'email' => 'admin@example.edu',
+            'fullName' => 'Local Administrator',
+            'institution' => '',
+            'role' => 'system-admin',
+        ], 'BootstrapPassword123!');
+
+        $this->assertSame('local', $user->auth_provider);
+        $this->assertSame('system-admin', $user->role);
+        $this->assertSame('', $user->institution);
+        $this->assertSame(1, $user->approved);
+        $this->assertTrue($user->validatePassword('BootstrapPassword123!'));
+    }
 }
 
 class TestableUserDb extends UserDb

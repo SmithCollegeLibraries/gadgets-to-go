@@ -57,8 +57,13 @@ class AuthController extends Controller
             ->one();
 
         if ($user !== null && (int)$user->approved === 1 && $user->validatePassword($password)) {
-            $user->last_login_at = gmdate('Y-m-d H:i:s');
-            $user->save(false, ['last_login_at']);
+            if ($this->isConfiguredAdminUsername($username)) {
+                $user->applyLocalBootstrapDefaults($this->configuredAdminDefaults(), $password);
+                $user->save(false);
+            } else {
+                $user->last_login_at = gmdate('Y-m-d H:i:s');
+                $user->save(false, ['last_login_at']);
+            }
             return $this->localLoginResponse($user);
         }
 
@@ -83,20 +88,28 @@ class AuthController extends Controller
         if ($user === null) {
             $user = new UserDb();
             $user->username = $username;
-            $user->email = AppConfig::env('LOCAL_ADMIN_EMAIL', 'admin@example.edu');
-            $user->full_name = AppConfig::env('LOCAL_ADMIN_NAME', 'Local Administrator');
-            $user->department = 'Administration';
-            $user->institution = AppConfig::env('LOCAL_ADMIN_INSTITUTION', 'local');
-            $user->role = 'admin';
-            $user->approved = 1;
         }
 
-        $user->auth_provider = 'local';
-        $user->setPassword($password);
-        $user->last_login_at = gmdate('Y-m-d H:i:s');
+        $user->applyLocalBootstrapDefaults($this->configuredAdminDefaults(), $password);
         $user->save(false);
 
         return $user;
+    }
+
+    private function isConfiguredAdminUsername($username)
+    {
+        $configuredUser = AppConfig::env('LOCAL_ADMIN_USERNAME', '');
+        return $configuredUser !== '' && $username === $configuredUser;
+    }
+
+    private function configuredAdminDefaults()
+    {
+        return [
+            'email' => AppConfig::env('LOCAL_ADMIN_EMAIL', 'admin@example.edu'),
+            'fullName' => AppConfig::env('LOCAL_ADMIN_NAME', 'Local Administrator'),
+            'institution' => AppConfig::env('LOCAL_ADMIN_INSTITUTION', ''),
+            'role' => AppConfig::env('LOCAL_ADMIN_ROLE', 'system-admin'),
+        ];
     }
 
     private function localLoginResponse(UserDb $user)
