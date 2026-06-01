@@ -63,13 +63,21 @@
 .sidebar-footer {
     padding: 1rem;
     border-top: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .return-link {
     color: #94a3b8;
 }
 
-.return-link:hover {
+.return-link:hover,
+.logout-link:hover {
     color: #fff;
     background-color: #334155;
+}
+
+.logout-link {
+    color: #fecaca;
 }
