@@ -87,6 +87,22 @@ Password: admin
 
 Change these with `LOCAL_ADMIN_USERNAME`, `LOCAL_ADMIN_PASSWORD`, and `LOCAL_ADMIN_EMAIL` before any shared deployment. After creating a named local system administrator, set `LOCAL_ADMIN_ENABLED=false` and restart the backend so the environment bootstrap login can no longer be used.
 
+## First Institution Setup Path
+
+1. Start Docker with `docker compose up --build`.
+2. Open `/setup-config` only while generating configuration snippets.
+3. Save institution YAML to `backend/config/institutions.yml`.
+4. Save runtime secrets and service URLs to `.env`; never commit this file.
+5. Log in with the bootstrap local admin.
+6. Create a named local system administrator.
+7. Set `LOCAL_ADMIN_ENABLED=false` and restart the backend.
+8. Open Admin > Setup Health and resolve failures.
+9. Test FOLIO inventory search.
+10. Test RTAC availability.
+11. Test local auth or Shibboleth.
+12. Place institution images in `public/images` and reference them from YAML as `/images/name.png`.
+13. Move to shared staging only after Setup Health has no failures.
+
 ## Configuration Files
 
 Primary configuration files:
@@ -559,6 +575,16 @@ Before production:
 - Run `npm audit` and `composer audit` regularly and schedule dependency upgrades.
 
 The Docker seed is suitable for local testing only. Production deployments should use institution-managed database provisioning and sanitized migrations or imports.
+
+### Setup Health
+
+System administrators can review deployment readiness in Admin > Setup Health. The report checks application secrets, CORS origins, bootstrap admin state, mail settings, auth providers, FOLIO inventory configuration, RTAC availability configuration, Shibboleth attributes, institution YAML, and institution image paths. It reports whether required settings are present or risky, but it never displays secret values.
+
+Run Setup Health before moving from local testing to shared staging. Shared staging should have no failures, a disabled bootstrap admin, verified FOLIO inventory search, verified RTAC availability, verified local auth or Shibboleth login, and institution images present in `public/images` with YAML paths such as `/images/name.png`.
+
+### Known Frontend Advisory
+
+`npm audit` currently reports a low-severity advisory for Quill through `react-quill-new`. Saved rich text is sanitized by the Yii backend with HTML Purifier before persistence, which reduces exposure for stored content but is not a substitute for applying dependency updates. Treat this as a tracked dependency update: apply a non-breaking update when one is available and re-run lint/build before distribution.
 
 ## Troubleshooting
 
