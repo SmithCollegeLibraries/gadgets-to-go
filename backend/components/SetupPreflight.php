@@ -78,7 +78,8 @@ class SetupPreflight
 
     private function checkCorsOrigins()
     {
-        $origins = $this->appConfig->allowedOrigins();
+        $configuredOrigins = AppConfig::env('APP_ALLOWED_ORIGINS', '');
+        $origins = $this->csvValues($configuredOrigins);
         if (!$origins || in_array('*', $origins, true)) {
             return $this->item(
                 'cors-origins',
@@ -96,6 +97,13 @@ class SetupPreflight
             'APP_ALLOWED_ORIGINS is restricted to explicit origins.',
             'APP_ALLOWED_ORIGINS'
         );
+    }
+
+    private function csvValues($value)
+    {
+        return array_values(array_filter(array_map('trim', explode(',', $value)), function ($item) {
+            return $item !== '';
+        }));
     }
 
     private function checkBootstrapAdmin()

@@ -9,7 +9,7 @@ use Codeception\Test\Unit;
 class SetupPreflightTest extends Unit
 {
     private $originalEnv = [];
-    private $tempConfigPath;
+    private $tempConfigPaths = [];
 
     protected function _before()
     {
@@ -29,8 +29,10 @@ class SetupPreflightTest extends Unit
             }
         }
 
-        if ($this->tempConfigPath !== null && is_file($this->tempConfigPath)) {
-            unlink($this->tempConfigPath);
+        foreach ($this->tempConfigPaths as $path) {
+            if (is_file($path)) {
+                unlink($path);
+            }
         }
     }
 
@@ -62,9 +64,25 @@ class SetupPreflightTest extends Unit
     public function testMissingAppSecretProducesFailure()
     {
         $this->setSecureEnv();
+        putenv('APP_SECRET_KEY');
+
+        $this->assertSame('fail', $this->findItem($this->checker()->run(), 'app-secret')['severity']);
+    }
+
+    public function testDefaultAppSecretProducesFailure()
+    {
+        $this->setSecureEnv();
         putenv('APP_SECRET_KEY=change-me-in-production-use-at-least-32-bytes');
 
         $this->assertSame('fail', $this->findItem($this->checker()->run(), 'app-secret')['severity']);
+    }
+
+    public function testMissingCorsOriginsProducesFailure()
+    {
+        $this->setSecureEnv();
+        putenv('APP_ALLOWED_ORIGINS');
+
+        $this->assertSame('fail', $this->findItem($this->checker()->run(), 'cors-origins')['severity']);
     }
 
     public function testWildcardCorsProducesFailure()
@@ -85,6 +103,18 @@ class SetupPreflightTest extends Unit
         $this->assertSame('fail', $item['severity']);
         $this->assertSame('FOLIO_INVENTORY_BASE_URL,FOLIO_TENANT_ID,FOLIO_USERNAME,FOLIO_PASSWORD', $item['field']);
         $this->assertStringContainsString('FOLIO_PASSWORD', $item['message']);
+    }
+
+    public function testIncompleteRtacSettingsAreActionable()
+    {
+        $this->setSecureEnv();
+        putenv('FOLIO_API_KEY');
+
+        $item = $this->findItem($this->checker()->run(), 'rtac-availability');
+
+        $this->assertSame('fail', $item['severity']);
+        $this->assertSame('FOLIO_AVAILABILITY_BASE_URL,FOLIO_RTAC_BASE_PATH,FOLIO_API_KEY', $item['field']);
+        $this->assertStringContainsString('FOLIO_API_KEY', $item['message']);
     }
 
     public function testSecretValuesAreNeverReturned()
@@ -108,6 +138,57 @@ class SetupPreflightTest extends Unit
         $this->assertSame('pass', $item['severity']);
     }
 
+    public function testInvalidDeploymentTypeProducesFailure()
+    {
+        $this->setSecureEnv();
+        $checker = $this->checker($this->institutionConfig([
+            'appName: Gadgets-to-Go',
+            'deployment:',
+            '  type: consortial',
+            '  primaryInstitutionSlug: testu',
+            '  homePage: institution-picker',
+            'authProviders:',
+            '  - local',
+            'institutions:',
+            '  - slug: testu',
+            '    code: TST',
+            '    name: Test University',
+        ]));
+
+        $item = $this->findItem($checker->run(), 'institution-config');
+
+        $this->assertSame('fail', $item['severity']);
+        $this->assertStringContainsString('deployment.type', $item['message']);
+    }
+
+    public function testMissingMultiLibraryImagePathProducesWarning()
+    {
+        $this->setSecureEnv();
+        $checker = $this->checker($this->institutionConfig([
+            'appName: Gadgets-to-Go',
+            'deployment:',
+            '  type: multi-library',
+            '  primaryInstitutionSlug: testu',
+            '  homePage: institution-picker',
+            'authProviders:',
+            '  - local',
+            'institutions:',
+            '  - slug: testu',
+            '    code: TST',
+            '    name: Test University',
+            '    image: /images/logo.png',
+            '  - slug: otheru',
+            '    code: OTH',
+            '    name: Other University',
+            '    image: /images/missing.png',
+        ]));
+
+        $item = $this->findItem($checker->run(), 'institution-images');
+
+        $this->assertSame('warning', $item['severity']);
+        $this->assertStringContainsString('public/images', $item['message']);
+    }
+
     private function checker($configPath = null)
     {
         return new SetupPreflight(
@@ -118,8 +199,7 @@ class SetupPreflightTest extends Unit
 
     private function multiLibraryConfig()
     {
-        $this->tempConfigPath = tempnam(sys_get_temp_dir(), 'institutions-');
-        file_put_contents($this->tempConfigPath, implode("\n", [
+        return $this->institutionConfig([
             'appName: Gadgets-to-Go',
             'deployment:',
             '  type: multi-library',
@@ -137,10 +217,16 @@ class SetupPreflightTest extends Unit
             '    code: OTH',
             '    name: Other University',
             '    image: /images/amherst.gif',
-            '',
-        ]));
+        ]);
+    }
 
-        return $this->tempConfigPath;
+    private function institutionConfig(array $lines)
+    {
+        $path = tempnam(sys_get_temp_dir(), 'institutions-');
+        file_put_contents($path, implode("\n", array_merge($lines, [''])));
+        $this->tempConfigPaths[] = $path;
+
+        return $path;
     }
 
     private function setSecureEnv()
