@@ -40,5 +40,7 @@ return [
             */
         ],
     ],
-    'params' => $params,
+    'params' => array_merge($params, [
+        'adminEmail' => 'admin@example.test',
+    ]),
 ];
