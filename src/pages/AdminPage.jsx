@@ -15,6 +15,7 @@ import InventoryTab from '../components/Admin/tabs/InventoryTab';
 import EditStylesTab from '../components/Admin/tabs/EditStylesTab';
 import BranchManagementTab from '../components/Admin/tabs/BranchManagementTab';
 import UserManagementTab from '../components/Admin/tabs/UserManagementTab';
+import SetupHealthTab from '../components/Admin/tabs/SetupHealthTab';
 import SchoolPage from './SchoolPage';
 // If you have a save button component
 import useTokenValidation from '../hooks/useTokenValidation';
@@ -151,6 +152,7 @@ function AdminPage() {
             {activeTab === 'styles' && 'Style Editor'}
             {activeTab === 'branches' && 'Branch & Location Management'}
             {activeTab === 'users' && 'User Management'}
+            {activeTab === 'setup' && 'Setup Health'}
           </h1>
           <div className="user-profile d-flex align-items-center gap-3">
             <div className="d-flex align-items-center gap-2">
@@ -248,6 +250,14 @@ function AdminPage() {
           {activeTab === 'users' && (
             <div className="admin-card">
               <UserManagementTab
+                baseUrl={baseUrl}
+                token={token}
+              />
+            </div>
+          )}
+          {activeTab === 'setup' && (
+            <div className="admin-card">
+              <SetupHealthTab
                 baseUrl={baseUrl}
                 token={token}
               />

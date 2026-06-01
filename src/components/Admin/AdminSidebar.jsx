@@ -9,6 +9,7 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
         { id: 'styles', label: 'Style Editor', icon: '🎨' },
         { id: 'branches', label: 'Branch Management', icon: '🏛️' },
         { id: 'users', label: 'User Management', icon: '👥' },
+        { id: 'setup', label: 'Setup Health', icon: '✓' },
     ];
 
     const handleLogout = async () => {
