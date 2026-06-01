@@ -78,14 +78,14 @@ http://localhost:8025
 
 The local Docker database is seeded from `docker/mysql/init/001-schema-seed.sql`. It uses representative test data and a local admin account. Do not import production SQL dumps into shared local environments unless they have been reviewed and sanitized.
 
-Default local admin credentials:
+Default local Docker bootstrap credentials:
 
 ```text
 Username: admin
 Password: admin
 ```
 
-Change these with `LOCAL_ADMIN_USERNAME`, `LOCAL_ADMIN_PASSWORD`, and `LOCAL_ADMIN_EMAIL` before any shared deployment.
+Change these with `LOCAL_ADMIN_USERNAME`, `LOCAL_ADMIN_PASSWORD`, and `LOCAL_ADMIN_EMAIL` before any shared deployment. After creating a named local system administrator, set `LOCAL_ADMIN_ENABLED=false` and restart the backend so the environment bootstrap login can no longer be used.
 
 ## Configuration Files
 
@@ -543,7 +543,7 @@ docker compose config
 Before production:
 
 - Replace `APP_SECRET_KEY` with a long random secret.
-- Replace local admin credentials or disable `local` auth if Shibboleth is required.
+- Replace local admin credentials, create a named system admin, and set `LOCAL_ADMIN_ENABLED=false`; or disable `local` auth entirely if Shibboleth is required.
 - Set `APP_ALLOWED_ORIGINS` to only the real frontend origins.
 - Set `TRUSTED_PROXIES` to the comma-separated IPs of load balancers or reverse proxies that are allowed to supply `X-Forwarded-For`.
 - Set `SECURITY_FRAME_ANCESTORS` to approved embedding origins if institutions use the embed feature, for example `'self' https://library.example.edu`.

@@ -13,6 +13,6 @@ docker compose up --build
 4. Backend API is available at `http://localhost:8000/api`.
 5. MailHog is available at `http://localhost:8025`.
 
-The local admin credentials are `admin` / `admin` unless changed with `LOCAL_ADMIN_USERNAME` and `LOCAL_ADMIN_PASSWORD`.
+The local bootstrap admin credentials are `admin` / `admin` unless changed with `LOCAL_ADMIN_USERNAME` and `LOCAL_ADMIN_PASSWORD`. Before using any shared environment, create a named local system admin and set `LOCAL_ADMIN_ENABLED=false`, or set a strong unique bootstrap password.
 
 Do not import the production SQL dump directly into shared local stacks. The Docker database uses `docker/mysql/init/001-schema-seed.sql`, which keeps representative inventory/style records and replaces real users with a fake local admin.
