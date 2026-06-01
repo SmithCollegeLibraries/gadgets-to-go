@@ -36,7 +36,7 @@ class LoginFormTest extends \Codeception\Test\Unit
         expect($this->model->errors)->hasKey('password');
     }
 
-    public function testLegacyLoginFormDoesNotAuthenticateDemoUsers()
+    public function testAdminCredentialsDoNotAuthenticate()
     {
         $this->model = new LoginForm([
             'username' => 'admin',

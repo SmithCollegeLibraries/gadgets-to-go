@@ -27,7 +27,7 @@ return [
             'showScriptName' => true,
         ],
         'user' => [
-            'identityClass' => 'app\models\User',
+            'identityClass' => 'backend\components\ShibbolethUser',
         ],
         'request' => [
             'cookieValidationKey' => 'test',

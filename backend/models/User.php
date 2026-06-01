@@ -12,8 +12,6 @@ class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
     public $authKey;
     public $accessToken;
 
-    private static $users = [];
-
     /**
      * {@inheritdoc}
      */
@@ -23,8 +21,8 @@ class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
     }
 
     /**
-     * Decodes JWT token and finds the user by the username embedded in the token.
-     * This method is used by HttpBearerAuth to authenticate the user via JWT token.
+     * Legacy identity hook retained for framework compatibility.
+     * API bearer authentication uses backend\components\ShibbolethUser.
      *
      * {@inheritdoc}
      */
