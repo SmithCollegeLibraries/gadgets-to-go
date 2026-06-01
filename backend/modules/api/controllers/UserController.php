@@ -5,6 +5,7 @@ namespace backend\modules\api\controllers;
 use Yii;
 use yii\rest\ActiveController;
 use yii\web\Response;
+use yii\web\BadRequestHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\ServerErrorHttpException;
 use yii\web\ForbiddenHttpException;
@@ -37,15 +38,21 @@ class UserController extends ActiveController
             'class' => Cors::class,
             'cors' => Yii::$app->params['cors'],
         ];
+        $behaviors['rateLimiter'] = [
+            'class' => \backend\components\SimpleRateLimiter::class,
+            'actions' => ['create-local', 'reset-password'],
+            'limit' => 30,
+            'window' => 60,
+        ];
 
         // Access control - only admin role can access these endpoints
         $behaviors['access'] = [
             'class' => \yii\filters\AccessControl::class,
-            'only' => ['index', 'view', 'update', 'delete', 'approve', 'reject'],
+            'only' => ['index', 'view', 'update', 'delete', 'approve', 'reject', 'create-local', 'reset-password'],
             'rules' => [
                 [
                     'allow' => true,
-                    'actions' => ['index', 'view', 'update', 'delete', 'approve', 'reject'],
+                    'actions' => ['index', 'view', 'update', 'delete', 'approve', 'reject', 'create-local', 'reset-password'],
                     'roles' => ['@'], // Authenticated users only
                     'matchCallback' => function ($rule, $action) use (&$behaviors) {
                         // Check if user has admin role
@@ -74,6 +81,37 @@ class UserController extends ActiveController
         unset($actions['create'], $actions['update']);
 
         return $actions;
+    }
+
+    public function actionCreateLocal()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+        $data = $this->requestData();
+        $password = isset($data['password']) ? (string)$data['password'] : '';
+        $email = isset($data['email']) ? trim((string)$data['email']) : '';
+        if ($email === '') {
+            throw new BadRequestHttpException('Email is required for local users.');
+        }
+        if (strlen($password) < 12) {
+            throw new BadRequestHttpException('Password must be at least 12 characters.');
+        }
+
+        $model = new UserDb();
+        $this->applySafeUserData($model, $data);
+        $model->auth_provider = 'local';
+        $model->approved = isset($data['approved']) ? (int)(bool)$data['approved'] : 1;
+        $model->setPassword($password);
+        $this->assertCanManageUser($model);
+
+        if ($model->save()) {
+            return $model;
+        }
+
+        if (!$model->hasErrors()) {
+            throw new ServerErrorHttpException('Failed to create the local user for unknown reasons.');
+        }
+
+        return $model;
     }
 
     /**
@@ -129,8 +167,7 @@ class UserController extends ActiveController
             $data = Yii::$app->request->post();
         }
 
-        // Load data into model
-        $model->load($data, '');
+        $this->applySafeUserData($model, $data);
 
         if ($model->save()) {
             return $model;
@@ -187,6 +224,27 @@ class UserController extends ActiveController
         throw new ServerErrorHttpException('Failed to reject the user.');
     }
 
+    public function actionResetPassword($id)
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+        $model = $this->findModel($id);
+        $this->assertCanManageUser($model);
+        if ($model->auth_provider !== 'local') {
+            throw new BadRequestHttpException('Password resets are only available for local users.');
+        }
+        if (!$model->email) {
+            throw new BadRequestHttpException('Local user does not have an email address.');
+        }
+
+        $token = $model->generatePasswordResetToken(3600);
+        if (!$model->save(false, ['password_reset_token_hash', 'password_reset_expires_at'])) {
+            throw new ServerErrorHttpException('Failed to create password reset token.');
+        }
+
+        $this->sendPasswordResetEmail($model, $token);
+        return ['message' => 'If the local user has an email address, reset instructions have been sent.'];
+    }
+
     /**
      * Finds the UserDb model based on its primary key value.
      *
@@ -212,6 +270,25 @@ class UserController extends ActiveController
         $slug = InstitutionAccess::scopedInstitutionSlug();
         if ($slug !== '' && $model->institution !== $slug) {
             throw new ForbiddenHttpException('You are not allowed to manage users for this institution.');
+        }
+    }
+
+    private function requestData()
+    {
+        $data = json_decode(Yii::$app->request->getRawBody(), true);
+        return is_array($data) ? $data : Yii::$app->request->post();
+    }
+
+    private function applySafeUserData(UserDb $model, array $data)
+    {
+        foreach (['username', 'email', 'full_name', 'department', 'institution', 'role'] as $attribute) {
+            if (array_key_exists($attribute, $data)) {
+                $model->{$attribute} = is_string($data[$attribute]) ? trim($data[$attribute]) : $data[$attribute];
+            }
+        }
+
+        if (isset($data['role']) && in_array($data['role'], ['super-admin', 'system-admin'], true) && !self::currentUserIsSystemAdmin()) {
+            throw new ForbiddenHttpException('Only system administrators can assign system roles.');
         }
     }
 
@@ -242,7 +319,7 @@ class UserController extends ActiveController
                 $decoded = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key(Yii::$app->params['jwtSecretKey'], 'HS256'));
                 
                 // Check if the user has admin role
-                if (isset($decoded->role) && $decoded->role === 'admin') {
+                if (isset($decoded->role) && in_array($decoded->role, ['admin', 'super-admin', 'system-admin'], true)) {
                     return true;
                 }
             } catch (\Exception $e) {
@@ -288,6 +365,19 @@ class UserController extends ActiveController
             ->setFrom([Yii::$app->params['mail']['from'] => 'Gadgets-to-Go'])
             ->setSubject('Access Request Approved')
             ->setTextBody($emailContent)
+            ->send();
+    }
+
+    protected function sendPasswordResetEmail($user, $token)
+    {
+        $frontendBaseUrl = rtrim(\backend\components\AppConfig::env('FRONTEND_BASE_URL', 'http://localhost:5173'), '/');
+        $resetUrl = $frontendBaseUrl . '/reset-password?token=' . rawurlencode($token);
+        Yii::$app->mailer
+            ->compose()
+            ->setTo($user->email)
+            ->setFrom([Yii::$app->params['mail']['from'] => Yii::$app->params['appConfig']->publicConfig()['appName']])
+            ->setSubject('Password reset request')
+            ->setTextBody("Use this link to reset your password:\n\n{$resetUrl}\n\nThis link expires in one hour.")
             ->send();
     }
 }

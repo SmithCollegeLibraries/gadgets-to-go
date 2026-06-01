@@ -349,15 +349,26 @@ AUTH_PROVIDERS=shibboleth,local
 
 ### Local Auth
 
-Local auth is intended for development, testing, and institutions that need a simple admin pathway.
+Local auth is intended for development, testing, and institutions that need username/password administration instead of, or in addition to, Shibboleth.
 
 ```env
 LOCAL_ADMIN_USERNAME=admin
 LOCAL_ADMIN_PASSWORD=replace-with-a-strong-password
 LOCAL_ADMIN_EMAIL=admin@example.edu
+FRONTEND_BASE_URL=https://gadgets.example.edu
 ```
 
-The frontend posts to `/api/auth/local-login`, and the backend issues a JWT signed with `APP_SECRET_KEY`.
+The environment admin is a bootstrap account. On first successful local login, the backend creates or upgrades that admin in `authorized_users` with a Yii-generated password hash. After that, admins can create, edit, approve, delete, and send password resets for local users in the User Management tab.
+
+Local user passwords are stored only as Yii password hashes. Password reset links use single-use reset tokens; the database stores only a hash of the reset token and an expiry timestamp. The frontend posts to `/api/auth/local-login`, and the backend issues a short-lived JWT signed with `APP_SECRET_KEY`.
+
+Existing databases need the local-auth schema update:
+
+```bash
+mysql -u <user> -p <database> < backend/migrations/2026-06-01-local-auth.sql
+```
+
+New Docker databases receive these columns automatically from `docker/mysql/init/001-schema-seed.sql`.
 
 ### Shibboleth
 

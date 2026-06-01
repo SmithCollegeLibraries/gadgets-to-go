@@ -103,6 +103,9 @@ $config = [
                     'extraPatterns' => [
                         'POST local-login' => 'local-login',
                         'POST exchange-code' => 'exchange-code',
+                        'POST forgot-password' => 'forgot-password',
+                        'POST reset-password' => 'reset-password',
+                        'POST change-password' => 'change-password',
                         'GET logout' => 'logout',
                         'POST logout' => 'logout',
                     ],
@@ -133,6 +136,8 @@ $config = [
                         'PUT update/<id>' => 'update',
                         'PATCH update/<id>' => 'update',
                         'DELETE delete/<id>' => 'delete',
+                        'POST create-local' => 'create-local',
+                        'POST reset-password/<id>' => 'reset-password',
                         'POST approve/<id>' => 'approve',
                         'POST reject/<id>' => 'reject',
                     ],

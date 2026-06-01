@@ -36,6 +36,18 @@ const UserManagementTab = ({ baseUrl, token }) => {
         role: 'user'
     });
     const [saving, setSaving] = useState(false);
+    const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [createFormData, setCreateFormData] = useState({
+        username: '',
+        email: '',
+        full_name: '',
+        department: '',
+        institution: '',
+        role: 'user',
+        approved: true,
+        password: '',
+        confirmPassword: ''
+    });
 
 
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -149,6 +161,70 @@ const UserManagementTab = ({ baseUrl, token }) => {
         }
     };
 
+    const handleCreateChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setCreateFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    };
+
+    const handleCreateUser = async () => {
+        if (createFormData.password.length < 12) {
+            toast.error('Password must be at least 12 characters.');
+            return;
+        }
+        if (createFormData.password !== createFormData.confirmPassword) {
+            toast.error('Passwords do not match.');
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const payload = {
+                username: createFormData.username,
+                email: createFormData.email,
+                full_name: createFormData.full_name,
+                department: createFormData.department,
+                institution: createFormData.institution,
+                role: createFormData.role,
+                approved: createFormData.approved,
+                password: createFormData.password
+            };
+            await axios.post(`${baseUrl}/user/create-local`, payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Local user created successfully');
+            setCreateModalOpen(false);
+            setCreateFormData({
+                username: '',
+                email: '',
+                full_name: '',
+                department: '',
+                institution: '',
+                role: 'user',
+                approved: true,
+                password: '',
+                confirmPassword: ''
+            });
+            fetchUsers();
+        } catch (error) {
+            console.error('Error creating local user:', error);
+            toast.error(error.response?.data?.message || 'Failed to create local user.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleResetPassword = async (user) => {
+        try {
+            await axios.post(`${baseUrl}/user/reset-password/${user.id}`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Password reset instructions sent.');
+        } catch (error) {
+            console.error('Error sending password reset:', error);
+            toast.error(error.response?.data?.message || 'Failed to send password reset.');
+        }
+    };
+
     const handleEditChange = (e) => {
         const { name, value } = e.target;
         setEditFormData(prev => ({ ...prev, [name]: value }));
@@ -241,6 +317,9 @@ const UserManagementTab = ({ baseUrl, token }) => {
                     <th scope="col" className="border-0 py-3 cursor-pointer user-select-none" onClick={() => requestSort('role')}>
                         Role {getSortIcon('role')}
                     </th>
+                    <th scope="col" className="border-0 py-3 cursor-pointer user-select-none" onClick={() => requestSort('auth_provider')}>
+                        Auth {getSortIcon('auth_provider')}
+                    </th>
                     <th scope="col" className="border-0 py-3 cursor-pointer user-select-none" onClick={() => requestSort('approved')}>
                         Status {getSortIcon('approved')}
                     </th>
@@ -259,6 +338,7 @@ const UserManagementTab = ({ baseUrl, token }) => {
                                 {user.role || 'user'}
                             </Badge>
                         </td>
+                        <td>{user.auth_provider || 'shibboleth'}</td>
                         <td>
                             {user.approved === 1 ? (
                                 <Badge color="success" pill>Active</Badge>
@@ -299,6 +379,17 @@ const UserManagementTab = ({ baseUrl, token }) => {
                                         <i className="bi bi-x-lg me-1" aria-hidden="true"></i> Reject
                                     </Button>
                                 )}
+                                {(user.auth_provider || 'shibboleth') === 'local' && (
+                                    <Button
+                                        size="sm"
+                                        color="warning"
+                                        title="Send Password Reset"
+                                        onClick={() => handleResetPassword(user)}
+                                        aria-label={`Send password reset to ${user.username || user.email}`}
+                                    >
+                                        <i className="bi bi-key me-1" aria-hidden="true"></i> Reset
+                                    </Button>
+                                )}
                                 <Button
                                     size="sm"
                                     color="danger"
@@ -336,6 +427,13 @@ const UserManagementTab = ({ baseUrl, token }) => {
                         </label>
                     </div>
                     <div className="d-flex gap-2">
+                        <Button
+                            color="success"
+                            onClick={() => setCreateModalOpen(true)}
+                        >
+                            <i className="bi bi-person-plus me-1" aria-hidden="true"></i>
+                            Create Local User
+                        </Button>
                         <Button
                             color={filterType === 'pending' ? 'primary' : 'light'}
                             onClick={() => setFilterType('pending')}
@@ -424,6 +522,60 @@ const UserManagementTab = ({ baseUrl, token }) => {
                         {saving ? 'Saving...' : 'Save Changes'}
                     </Button>
                     <Button color="secondary" onClick={() => setEditModalOpen(false)}>Cancel</Button>
+                </ModalFooter>
+            </Modal>
+
+            {/* Create Local User Modal */}
+            <Modal isOpen={createModalOpen} toggle={() => setCreateModalOpen(!createModalOpen)}>
+                <ModalHeader toggle={() => setCreateModalOpen(!createModalOpen)}>Create Local User</ModalHeader>
+                <ModalBody>
+                    <Form>
+                        <FormGroup>
+                            <Label for="create-username">Username</Label>
+                            <Input type="text" name="username" id="create-username" value={createFormData.username} onChange={handleCreateChange} />
+                        </FormGroup>
+                        <FormGroup>
+                            <Label for="create-full-name">Full Name</Label>
+                            <Input type="text" name="full_name" id="create-full-name" value={createFormData.full_name} onChange={handleCreateChange} />
+                        </FormGroup>
+                        <FormGroup>
+                            <Label for="create-email">Email</Label>
+                            <Input type="email" name="email" id="create-email" value={createFormData.email} onChange={handleCreateChange} />
+                        </FormGroup>
+                        <FormGroup>
+                            <Label for="create-department">Department</Label>
+                            <Input type="text" name="department" id="create-department" value={createFormData.department} onChange={handleCreateChange} />
+                        </FormGroup>
+                        <FormGroup>
+                            <Label for="create-institution">Institution</Label>
+                            <Input type="text" name="institution" id="create-institution" value={createFormData.institution} onChange={handleCreateChange} />
+                        </FormGroup>
+                        <FormGroup>
+                            <Label for="create-role">Role</Label>
+                            <Input type="select" name="role" id="create-role" value={createFormData.role} onChange={handleCreateChange}>
+                                <option value="user">User</option>
+                                <option value="admin">Admin</option>
+                            </Input>
+                        </FormGroup>
+                        <FormGroup check className="mb-3">
+                            <Input type="checkbox" name="approved" id="create-approved" checked={createFormData.approved} onChange={handleCreateChange} />
+                            <Label check for="create-approved">Approved</Label>
+                        </FormGroup>
+                        <FormGroup>
+                            <Label for="create-password">Password</Label>
+                            <Input type="password" name="password" id="create-password" value={createFormData.password} onChange={handleCreateChange} autoComplete="new-password" />
+                        </FormGroup>
+                        <FormGroup>
+                            <Label for="create-confirm-password">Confirm Password</Label>
+                            <Input type="password" name="confirmPassword" id="create-confirm-password" value={createFormData.confirmPassword} onChange={handleCreateChange} autoComplete="new-password" />
+                        </FormGroup>
+                    </Form>
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="primary" onClick={handleCreateUser} disabled={saving}>
+                        {saving ? 'Creating...' : 'Create User'}
+                    </Button>
+                    <Button color="secondary" onClick={() => setCreateModalOpen(false)}>Cancel</Button>
                 </ModalFooter>
             </Modal>
 

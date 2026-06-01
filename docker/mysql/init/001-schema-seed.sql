@@ -8,6 +8,11 @@ CREATE TABLE IF NOT EXISTS authorized_users (
   role varchar(50) DEFAULT 'user',
   date_added datetime DEFAULT current_timestamp(),
   approved tinyint(1) NOT NULL DEFAULT 0,
+  auth_provider varchar(50) NOT NULL DEFAULT 'shibboleth',
+  password_hash varchar(255) DEFAULT NULL,
+  password_reset_token_hash varchar(255) DEFAULT NULL,
+  password_reset_expires_at datetime DEFAULT NULL,
+  last_login_at datetime DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY username (username),
   UNIQUE KEY email (email)
@@ -66,8 +71,8 @@ CREATE TABLE IF NOT EXISTS disabled_items (
   KEY idx_owner_type (owner, item_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO authorized_users (username, full_name, email, department, institution, role, approved)
-VALUES ('admin', 'Local Administrator', 'admin@example.edu', 'Administration', 'local', 'admin', 1)
+INSERT INTO authorized_users (username, full_name, email, department, institution, role, approved, auth_provider)
+VALUES ('admin', 'Local Administrator', 'admin@example.edu', 'Administration', 'local', 'admin', 1, 'local')
 ON DUPLICATE KEY UPDATE role = VALUES(role), approved = VALUES(approved);
 
 INSERT INTO inventory (id, folio_id, aleph_id, title, description, owner, location, sort_order)

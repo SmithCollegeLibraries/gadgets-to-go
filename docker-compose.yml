@@ -22,7 +22,7 @@ services:
       YII_DEBUG: "false"
       APP_SECRET_KEY: change-me-local-development-secret-at-least-32-bytes
       APP_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,https://localhost:5173,https://127.0.0.1:5173
-      FRONTEND_BASE_URL: http://localhost:5173
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
       DB_DSN: mysql:host=db;dbname=gadgets_to_go
       DB_USER: gadgets_to_go
       DB_PASSWORD: gadgets_to_go
@@ -38,9 +38,11 @@ services:
       FOLIO_BASE_URL: ${FOLIO_BASE_URL:-}
       FOLIO_OKAPI_URL: ${FOLIO_OKAPI_URL:-}
       FOLIO_RTAC_BASE_PATH: ${FOLIO_RTAC_BASE_PATH:-/prod/rtac/folioRTAC?mms_id=}
-      LOCAL_ADMIN_USERNAME: admin
-      LOCAL_ADMIN_PASSWORD: admin
-      LOCAL_ADMIN_EMAIL: admin@example.edu
+      LOCAL_ADMIN_USERNAME: ${LOCAL_ADMIN_USERNAME:-admin}
+      LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:-admin}
+      LOCAL_ADMIN_EMAIL: ${LOCAL_ADMIN_EMAIL:-admin@example.edu}
+      LOCAL_ADMIN_NAME: ${LOCAL_ADMIN_NAME:-Local Administrator}
+      LOCAL_ADMIN_INSTITUTION: ${LOCAL_ADMIN_INSTITUTION:-local}
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
       MAIL_FROM: no-reply@example.edu

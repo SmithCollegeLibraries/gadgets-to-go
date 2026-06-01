@@ -8,6 +8,9 @@ const LoginButton = () => {
   const [localUsername, setLocalUsername] = useState('');
   const [localPassword, setLocalPassword] = useState('');
   const [localError, setLocalError] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
   const { appConfig, baseUrl } = useSchoolStore();
   const appName = appConfig.appName || 'Library Equipment';
   const localAuthEnabled = (appConfig.authProviders || []).includes('local');
@@ -55,6 +58,27 @@ const LoginButton = () => {
     }
   };
 
+  const handleForgotPassword = async () => {
+    setForgotMessage('');
+    setForgotLoading(true);
+    try {
+      const response = await fetch(`${baseUrl}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameOrEmail: forgotEmail }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.name || 'Unable to request password reset.');
+      }
+      setForgotMessage(data.message || 'If a matching local account exists, password reset instructions have been sent.');
+    } catch (error) {
+      setForgotMessage(error.message);
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   return (
     <>
       <button onClick={handleLoginClick} className="btn btn-primary">
@@ -84,6 +108,21 @@ const LoginButton = () => {
                 <Input id="local-password" type="password" value={localPassword} onChange={(e) => setLocalPassword(e.target.value)} />
               </div>
               {localError && <div className="text-danger small">{localError}</div>}
+              <div className="border-top pt-3 mt-3">
+                <Label for="forgot-email">Forgot password</Label>
+                <div className="d-flex gap-2">
+                  <Input
+                    id="forgot-email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="Username or email"
+                  />
+                  <Button color="secondary" onClick={handleForgotPassword} disabled={forgotLoading}>
+                    {forgotLoading ? 'Sending...' : 'Send Reset'}
+                  </Button>
+                </div>
+                {forgotMessage && <div className="text-muted small mt-2">{forgotMessage}</div>}
+              </div>
             </div>
           )}
         </ModalBody>

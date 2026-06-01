@@ -21,6 +21,7 @@ const SetupConfig = lazy(() => import('./pages/SetupConfig'));
 const SchoolPage = lazy(() => import('./pages/SchoolPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const RequestAccess = lazy(() => import('./pages/RequestAccess'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 function LoadingRoute({ label = 'Loading...' }) {
   return (
@@ -133,6 +134,10 @@ function App() {
         <Route
           path='/request-access'
           element={<RequestAccess />}
+        />
+        <Route
+          path='/reset-password'
+          element={<ResetPassword />}
         />
       </Routes>
     </Suspense>
