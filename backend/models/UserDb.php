@@ -139,4 +139,9 @@ class UserDb extends \yii\db\ActiveRecord
         $this->setPassword($password);
         $this->last_login_at = gmdate('Y-m-d H:i:s');
     }
+
+    public static function localBootstrapEnabled($value)
+    {
+        return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
+    }
 }

@@ -78,6 +78,10 @@ class AuthController extends Controller
 
     private function bootstrapConfiguredAdmin($username, $password)
     {
+        if (!UserDb::localBootstrapEnabled(AppConfig::env('LOCAL_ADMIN_ENABLED', 'true'))) {
+            return null;
+        }
+
         $configuredUser = AppConfig::env('LOCAL_ADMIN_USERNAME', '');
         $configuredPassword = AppConfig::env('LOCAL_ADMIN_PASSWORD', '');
         if ($configuredUser === '' || $configuredPassword === '' || $username !== $configuredUser || !hash_equals($configuredPassword, $password)) {

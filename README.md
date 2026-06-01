@@ -352,6 +352,7 @@ AUTH_PROVIDERS=shibboleth,local
 Local auth is intended for development, testing, and institutions that need username/password administration instead of, or in addition to, Shibboleth.
 
 ```env
+LOCAL_ADMIN_ENABLED=true
 LOCAL_ADMIN_USERNAME=admin
 LOCAL_ADMIN_PASSWORD=replace-with-a-strong-password
 LOCAL_ADMIN_EMAIL=admin@example.edu
@@ -361,6 +362,14 @@ FRONTEND_BASE_URL=https://gadgets.example.edu
 ```
 
 The environment admin is a bootstrap account. On first successful local login, the backend creates or upgrades that admin in `authorized_users` with a Yii-generated password hash. By default it is a `system-admin` with an empty institution scope, so it can create the first local users for any configured institution. Set `LOCAL_ADMIN_ROLE=admin` and `LOCAL_ADMIN_INSTITUTION=<institution-slug>` only when the bootstrap account should be limited to one institution.
+
+Never deploy with the default `admin/admin` credentials. Before sharing an environment, either set `LOCAL_ADMIN_PASSWORD` to a strong unique value or create a named local system admin and then set:
+
+```env
+LOCAL_ADMIN_ENABLED=false
+```
+
+Disabling `LOCAL_ADMIN_ENABLED` only disables the environment bootstrap login. Database-backed local users continue to work.
 
 Local user passwords are stored only as Yii password hashes. Password reset links use single-use reset tokens; the database stores only a hash of the reset token and an expiry timestamp. The frontend posts to `/api/auth/local-login`, and the backend issues a short-lived JWT signed with `APP_SECRET_KEY`.
 

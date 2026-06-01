@@ -72,6 +72,15 @@ class UserDbCredentialTest extends Unit
         $this->assertSame(1, $user->approved);
         $this->assertTrue($user->validatePassword('BootstrapPassword123!'));
     }
+
+    public function testBootstrapCanBeDisabled()
+    {
+        $this->assertFalse(UserDb::localBootstrapEnabled('false'));
+        $this->assertFalse(UserDb::localBootstrapEnabled('0'));
+        $this->assertFalse(UserDb::localBootstrapEnabled('no'));
+        $this->assertTrue(UserDb::localBootstrapEnabled('true'));
+        $this->assertTrue(UserDb::localBootstrapEnabled('1'));
+    }
 }
 
 class TestableUserDb extends UserDb
