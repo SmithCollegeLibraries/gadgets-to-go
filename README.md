@@ -4,6 +4,13 @@ Gadgets-to-Go is a React and Yii2 application for publishing library equipment i
 
 The application is configurable for a single library or a multi-library consortium. Institution names, library branches, FOLIO locations, email domains, auth providers, and default display text are defined in `backend/config/institutions.yml`.
 
+## Branches & releases
+
+This repository hosts two independently maintained lines:
+
+- **`main`** — this configurable distribution, for any institution to deploy. Releases are tagged with plain semver (`v1.0.0`, `v1.1.0`, …); the newest is marked **Latest** on the [Releases page](https://github.com/SmithCollegeLibraries/gadgets-to-go/releases). **Deploy from `main`.**
+- **`five-colleges`** — the Five Colleges (Amherst, Hampshire, Mount Holyoke, Smith, UMass) production deployment: a lean, hardcoded build kept free of the configuration layer. Releases are tagged `fc-v1.0.0`, … It serves as a real-world reference deployment, but is a separate codebase — fixes are ported between the two lines by hand.
+
 ## Architecture
 
 - Frontend: React 18, Vite, Reactstrap, Zustand
