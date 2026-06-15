@@ -1,0 +1,121 @@
+.admin-dashboard {
+    display: flex;
+    height: 100vh;
+    background-color: #f1f5f9;
+    overflow: hidden;
+}
+
+.admin-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+}
+
+.admin-header {
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.admin-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+/* Tab Content Transitions */
+.tab-content {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Split View for Style Editor */
+.split-view {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 2rem;
+    align-items: start;
+    height: calc(100vh - 150px);
+    /* Fill remaining height */
+}
+
+.editor-panel {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+.preview-panel {
+    background: #fff;
+    border-radius: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.preview-header {
+    padding: 0.75rem 1rem;
+    background: #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid #cbd5e1;
+}
+
+.preview-dots {
+    display: flex;
+    gap: 6px;
+}
+
+.preview-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #cbd5e1;
+}
+
+.preview-dot.red {
+    background-color: #ef4444;
+}
+
+.preview-dot.yellow {
+    background-color: #eab308;
+}
+
+.preview-dot.green {
+    background-color: #22c55e;
+}
+
+.preview-frame {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    background: white;
+}
+
+/* Layout for other tabs */
+.admin-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

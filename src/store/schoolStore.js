@@ -40,15 +40,34 @@ const schoolDefaults = {
 };
 
 
-const useSchoolStore = create((set) => ({
+const useSchoolStore = create((set, get) => ({
   layoutData: [],
   colorData: [],
   inventoryData: [],
+  cache: {},
   baseUrl,
   isLoading: false,
-  fetchLayoutData: async (school) => {
+  isLayoutLoading: false,
+  isInventoryLoading: false,
+
+  fetchLayoutData: async (school, updateActiveState = true) => {
+    const { cache } = get();
+    // Check if valid data exists in cache
+    if (cache[school]?.layoutData && cache[school]?.colorData) {
+      if (updateActiveState) {
+        set({
+          layoutData: cache[school].layoutData,
+          colorData: cache[school].colorData,
+          isLayoutLoading: false,
+        });
+      }
+      return;
+    }
+
     try {
-      set({ isLoading: true }); // Set loading state to true
+      if (updateActiveState) {
+        set({ isLoading: true, isLayoutLoading: true });
+      }
       const code = schoolCodeMapping[school];
       const layoutResponse = await fetch(`${baseUrl}/label?location=${code}`);
       const layoutJson = await layoutResponse.json();
@@ -58,39 +77,85 @@ const useSchoolStore = create((set) => ({
         { name: 'libraryName', text: schoolDefaultData.libraryName },
         { name: 'headerText', text: schoolDefaultData.headerText },
         { name: 'footerText', text: schoolDefaultData.footerText },
+        { name: 'headerTextSize', text: '3' },
+        { name: 'useLogo', text: 'false' },
+        { name: 'logoUrl', text: '' },
+        { name: 'logoAlt', text: '' },
+        { name: 'logoHeight', text: '80' },
       ];
 
-      const mergedLayoutData = defaultLayoutData.map((defaultItem) => {
-        const fetchedItem = layoutJson.find(item => item.name === defaultItem.name);
-        return fetchedItem || defaultItem;
-      });
+      // Create a map to merge defaults with backend data
+      const layoutMap = new Map(defaultLayoutData.map(item => [item.name, item]));
+      
+      if (Array.isArray(layoutJson)) {
+        layoutJson.forEach(item => {
+          layoutMap.set(item.name, item); 
+        });
+      }
+
+      const mergedLayoutData = Array.from(layoutMap.values());
 
       const colorResponse = await fetch(`${baseUrl}/styling/get-data?location=${code}`);
       const colorJson = await colorResponse.json();
 
-      set({
-        layoutData: mergedLayoutData || [],
-        colorData: colorJson || [],
-        isLoading: false, // Set loading state to false when done
+      set((state) => {
+        const updates = {
+          cache: {
+            ...state.cache,
+            [school]: {
+              ...state.cache[school],
+              layoutData: mergedLayoutData,
+              colorData: colorJson
+            }
+          }
+        };
+
+        if (updateActiveState) {
+          updates.layoutData = mergedLayoutData;
+          updates.colorData = colorJson;
+          updates.isLoading = false;
+          updates.isLayoutLoading = false;
+        }
+
+        return updates;
       });
     } catch (error) {
       console.error('Error fetching layout data:', error);
-      set({ isLoading: false }); // Ensure loading state is reset on error
+      if (updateActiveState) {
+        set({ isLoading: false, isLayoutLoading: false });
+      }
     }
   },
   fetchInventoryData: async (school) => {
+    const { cache } = get();
+    if (cache[school]?.inventoryData) {
+      set({
+        inventoryData: cache[school].inventoryData,
+        isInventoryLoading: false,
+      });
+      return;
+    }
+
     try {
-      set({ isLoading: true });
+      set({ isLoading: true, isInventoryLoading: true });
       const code = schoolCodeMapping[school.toLowerCase()];
       const response = await fetch(`${baseUrl}/inventory/location-data?owner=${code}`);
       const json = await response.json();
-      set({
+      set((state) => ({
         inventoryData: json || [],
         isLoading: false,
-      });
+        isInventoryLoading: false,
+        cache: {
+          ...state.cache,
+          [school]: {
+            ...state.cache[school],
+            inventoryData: json
+          }
+        }
+      }));
     } catch (error) {
       console.error('Error fetching inventory data:', error);
-      set({ isLoading: false });
+      set({ isLoading: false, isInventoryLoading: false });
     }
   },
   setLocalStyles: (styles) => set({ localStyles: styles }),

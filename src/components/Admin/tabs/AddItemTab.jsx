@@ -2,6 +2,26 @@ import { useState } from 'react';
 import { Form, FormGroup, Label, Input, Button, Row, Col } from 'reactstrap';
 import axios from 'axios';
 import PropTypes from 'prop-types';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+
+// ReactQuill toolbar configuration
+const quillModules = {
+  toolbar: [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link'],
+    ['clean']
+  ],
+};
+
+const quillFormats = [
+  'header',
+  'bold', 'italic', 'underline', 'strike',
+  'list', 'bullet',
+  'link'
+];
 
 function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
   const [newItem, setNewItem] = useState({
@@ -16,6 +36,13 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
     setNewItem({
       ...newItem,
       [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleDescriptionChange = (value) => {
+    setNewItem({
+      ...newItem,
+      description: value,
     });
   };
 
@@ -66,7 +93,7 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
   return (
     <>
       <h2 className="mb-4">Add New Item</h2>
-      <Form onSubmit={handleAddItem}>
+      <Form onSubmit={handleAddItem} aria-label=\"Add new inventory item\">
         <Row>
           <Col md={6}>
             <FormGroup>
@@ -97,15 +124,19 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
           <Col md={12}>
             <FormGroup>
               <Label for="description">Description</Label>
-              <Input
-                type="textarea"
-                name="description"
-                id="description"
-                rows="3"
+              <ReactQuill
+                theme="snow"
                 value={newItem.description}
-                onChange={handleNewItemChange}
-                required
+                onChange={handleDescriptionChange}
+                modules={quillModules}
+                formats={quillFormats}
+                placeholder="Enter item description with formatting and links..."
+                style={{ backgroundColor: 'white', borderRadius: '4px' }}
               />
+              <small className="text-muted d-block mt-1">
+                <i className="bi bi-info-circle me-1"></i>
+                Use the toolbar to format text and add hyperlinks
+              </small>
             </FormGroup>
           </Col>
           <Col md={6}>
@@ -130,7 +161,12 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
                 id="file"
                 accept="image/*"
                 onChange={handleImageChange}
+                aria-describedby="file-help"
               />
+              <small id="file-help" className="text-muted d-block mt-1">
+                <i className="bi bi-info-circle me-1" aria-hidden="true"></i>
+                Supported formats: JPG, PNG, GIF
+              </small>
             </FormGroup>
           </Col>
           <Col md={12}>
