@@ -330,6 +330,24 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
     return groups;
   }, [groupByBranch, filteredItems]);
 
+  // Flatten selected custom-filter values into removable chips for the shared chip row
+  const activeCustomChips = useMemo(() => (
+    filterGroups.flatMap((group) => {
+      const selected = selectedCustomFilters[group.slug] || [];
+      return selected.map((value) => {
+        const option = group.options.find((opt) => opt.slug === value);
+        return { groupSlug: group.slug, value, label: option ? option.name : value };
+      });
+    })
+  ), [filterGroups, selectedCustomFilters]);
+
+  const removeCustomFilterValue = (groupSlug, value) => {
+    setSelectedCustomFilters((previous) => ({
+      ...previous,
+      [groupSlug]: (previous[groupSlug] || []).filter((selected) => selected !== value),
+    }));
+  };
+
   // Handlers
   const toggleModal = () => {
     setSelectedItem(null);
@@ -546,9 +564,9 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
           <nav aria-label="Filter and search controls" className="mb-4">
             <Card className="shadow-sm border-0" style={{ zIndex: 100, top: '20px' }}>
               <CardBody className="p-3">
-                {/* Row 1: Search and Filter */}
-                <Row className="g-3 align-items-center mb-3">
-                  <Col md={8}>
+                {/* Row 1: Search (full width) */}
+                <Row className="g-3 mb-3">
+                  <Col xs={12}>
                     <div role="search">
                       <label htmlFor="search-input" className="visually-hidden">Search gadgets and equipment</label>
                       <InputGroup>
@@ -565,13 +583,17 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                       </InputGroup>
                     </div>
                   </Col>
-                  <Col md={4}>
+                </Row>
+
+                {/* Row 2: Unified filter row — branch + custom filters as equal-width columns */}
+                <Row className="g-3 mb-3">
+                  <Col xs={12} sm={6} md>
                     <label htmlFor="branch-filter" className="visually-hidden">Filter by library location</label>
-                    <Input 
-                      id="branch-filter" 
-                      type="select" 
-                      value={selectedBranch} 
-                      onChange={(e) => setSelectedBranch(e.target.value)} 
+                    <Input
+                      id="branch-filter"
+                      type="select"
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
                       aria-label="Filter by library location"
                     >
                       <option value="">All Libraries</option>
@@ -580,27 +602,45 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                       ))}
                     </Input>
                   </Col>
+                  {filterGroups.map((group) => (
+                    <Col xs={12} sm={6} md key={group.id}>
+                      <MultiSelectFilter
+                        ariaLabel={`Filter by ${group.name}`}
+                        options={group.options}
+                        selectedValues={selectedCustomFilters[group.slug] || []}
+                        onChange={(selectedValues) => {
+                          setSelectedCustomFilters((previous) => ({
+                            ...previous,
+                            [group.slug]: selectedValues,
+                          }));
+                        }}
+                        placeholder={`All ${group.name}`}
+                        showSelectedBadges={false}
+                      />
+                    </Col>
+                  ))}
                 </Row>
 
-                {filterGroups.length > 0 && (
-                  <Row className="g-3 align-items-start mb-3">
-                    {filterGroups.map((group) => (
-                      <Col md={4} key={group.id}>
-                        <MultiSelectFilter
-                          label={group.name}
-                          options={group.options}
-                          selectedValues={selectedCustomFilters[group.slug] || []}
-                          onChange={(selectedValues) => {
-                            setSelectedCustomFilters((previous) => ({
-                              ...previous,
-                              [group.slug]: selectedValues,
-                            }));
-                          }}
-                          placeholder={`All ${group.name}`}
+                {/* Active custom-filter chips — shared row keeps the controls from reflowing */}
+                {activeCustomChips.length > 0 && (
+                  <div className="d-flex flex-wrap gap-1 mb-3">
+                    {activeCustomChips.map((chip) => (
+                      <Badge
+                        key={`${chip.groupSlug}:${chip.value}`}
+                        color="light"
+                        className="text-dark border d-inline-flex align-items-center gap-1"
+                        pill
+                      >
+                        {chip.label}
+                        <button
+                          type="button"
+                          className="btn-close btn-close-sm"
+                          aria-label={`Remove ${chip.label}`}
+                          onClick={() => removeCustomFilterValue(chip.groupSlug, chip.value)}
                         />
-                      </Col>
+                      </Badge>
                     ))}
-                  </Row>
+                  </div>
                 )}
 
                 {/* Row 2: Controls */}
