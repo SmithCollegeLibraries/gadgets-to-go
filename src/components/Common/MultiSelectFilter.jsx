@@ -10,6 +10,8 @@ function MultiSelectFilter({
   idField = 'slug',
   labelField = 'name',
   placeholder = 'Select options',
+  ariaLabel,
+  showSelectedBadges = true,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,7 +44,9 @@ function MultiSelectFilter({
     onChange([...selectedValues, value]);
   };
 
-  const buttonLabel = selectedOptions.length > 0
+  const hasSelection = selectedOptions.length > 0;
+  const filled = showSelectedBadges && hasSelection;
+  const buttonLabel = hasSelection && label
     ? `${label}: ${selectedOptions.length}`
     : placeholder;
 
@@ -51,17 +55,23 @@ function MultiSelectFilter({
       {label && <div className="small fw-bold text-secondary mb-1">{label}</div>}
       <Button
         type="button"
-        color={selectedOptions.length > 0 ? 'primary' : 'light'}
-        outline={selectedOptions.length === 0}
-        className="w-100 d-flex justify-content-between align-items-center text-start"
+        color={filled ? 'primary' : 'secondary'}
+        outline={!filled}
+        className={`w-100 d-flex justify-content-between align-items-center text-start ${filled ? 'text-white' : `text-dark bg-white ${showSelectedBadges ? 'border-secondary' : 'border'}`}`}
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
+        aria-label={ariaLabel || label || placeholder}
       >
         <span className="text-truncate">{buttonLabel}</span>
-        <i className={`bi ${isOpen ? 'bi-chevron-up' : 'bi-chevron-down'}`} aria-hidden="true"></i>
+        <span className="d-flex align-items-center gap-2 flex-shrink-0">
+          {!showSelectedBadges && hasSelection && (
+            <Badge color="primary" pill>{selectedOptions.length}</Badge>
+          )}
+          <i className={`bi ${isOpen ? 'bi-chevron-up' : 'bi-chevron-down'}`} aria-hidden="true"></i>
+        </span>
       </Button>
 
-      {selectedOptions.length > 0 && (
+      {showSelectedBadges && selectedOptions.length > 0 && (
         <div className="d-flex flex-wrap gap-1 mt-2">
           {selectedOptions.map((option) => (
             <Badge
@@ -130,6 +140,8 @@ MultiSelectFilter.propTypes = {
   idField: PropTypes.string,
   labelField: PropTypes.string,
   placeholder: PropTypes.string,
+  ariaLabel: PropTypes.string,
+  showSelectedBadges: PropTypes.bool,
 };
 
 export default MultiSelectFilter;
