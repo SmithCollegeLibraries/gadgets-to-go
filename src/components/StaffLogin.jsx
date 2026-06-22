@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
 import { Modal, ModalHeader, ModalBody, ModalFooter, Button } from 'reactstrap';
+import { buildAdminReturnUrl, buildAuthRedirectUrl } from '../utils/authUrls';
 
 const LoginButton = () => {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
@@ -8,9 +9,8 @@ const LoginButton = () => {
   const toggleInfoModal = () => setIsInfoModalOpen(!isInfoModalOpen);
 
   const handleLogin = () => {
-    // Build return URL with current origin
-    const returnUrl = `${window.location.origin}/admin/smith`;
-    const authUrl = `${import.meta.env.VITE_AUTH_URL}?return_url=${encodeURIComponent(returnUrl)}`;
+    const returnUrl = buildAdminReturnUrl(window.location.origin, import.meta.env.BASE_URL, '/admin/smith');
+    const authUrl = buildAuthRedirectUrl(import.meta.env.VITE_AUTH_URL, returnUrl);
     
     // Redirect the user to the authorize.php script for Shibboleth login
     window.location.href = authUrl;
@@ -38,11 +38,11 @@ const LoginButton = () => {
         <ModalBody>
           <p>
             <strong>Important:</strong> Only approved library staff have access to manage Gadgets to Go.
-            Please check with your library's Access Service department before trying to log in.
+            Please check with your library&apos;s Access Service department before trying to log in.
           </p>
           <p>
-            If you are authorized library staff, click "Proceed to Login" to continue.
-            Otherwise, please contact your library's Access Services department for assistance.
+            If you are authorized library staff, click &quot;Proceed to Login&quot; to continue.
+            Otherwise, please contact your library&apos;s Access Services department for assistance.
           </p>
         </ModalBody>
         <ModalFooter>
