@@ -11,6 +11,7 @@ import 'react-quill/dist/quill.snow.css';
 import SearchableSelect from '../../Common/SearchableSelect';
 import MultiSelectFilter from '../../Common/MultiSelectFilter';
 import { locations } from '../../../data/locations';
+import { buildFolioInventorySearchUrl, getLocationUuid } from '../../../utils/folioSearch';
 
 // ReactQuill toolbar configuration
 const quillModules = {
@@ -40,26 +41,34 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
     const [isSearching, setIsSearching] = useState(false);
     const [batchBranch, setBatchBranch] = useState('');
     const [batchFilterOptionIds, setBatchFilterOptionIds] = useState([]);
+    const folioLocations = locations
+        .map((item) => ({
+            ...item,
+            folioLocationId: getLocationUuid(item),
+        }))
+        .filter((item) => item.folioLocationId);
 
     const handleSearch = async () => {
         if (!searchQuery && searchType !== 'location') return;
         if (searchType === 'location' && !location) {
-            toast.warning('Please select a location before searching.');
+            toast.warning('Please select a FOLIO location before searching.');
             return;
         }
 
         setIsSearching(true);
-        let queryUrl = `https://libtools2.smith.edu/folio/web/search/search-inventory?query=`;
-        if (searchType === 'title') queryUrl += `(title all "${searchQuery}")`;
-        else if (searchType === 'hrid') queryUrl += `hrid=${searchQuery}`;
-        else if (searchType === 'location') queryUrl += `(items.effectiveLocationId=="${location}")`;
 
         try {
+            const queryUrl = buildFolioInventorySearchUrl(searchType, {
+                searchQuery,
+                locationId: location,
+            });
             const response = await axios.get(queryUrl);
             setSearchResults(response.data.data.instances || []);
         } catch (error) {
             console.error(error);
-            toast.error('Failed to search inventory.');
+            toast.error(searchType === 'location'
+                ? 'Location search requires FOLIO location UUIDs. Update locations.js with UUID values before using this search.'
+                : 'Failed to search inventory.');
         } finally {
             setIsSearching(false);
         }
@@ -169,13 +178,20 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
                                 <div style={{ marginBottom: '0px' }}>
                                     <Label size="sm" className="fw-bold text-secondary text-uppercase small">Select Location</Label>
                                     <SearchableSelect
-                                        options={locations}
+                                        options={folioLocations}
                                         value={location}
                                         onChange={(val) => setLocation(val)}
-                                        placeholder="Type to search location..."
-                                        idField="code"
+                                        placeholder={folioLocations.length > 0 ? 'Type to search location...' : 'No UUID-backed locations configured'}
+                                        idField="folioLocationId"
+                                        codeField="code"
+                                        disabled={folioLocations.length === 0}
                                         className="form-control-lg"
                                     />
+                                    {folioLocations.length === 0 && (
+                                        <div className="small text-danger mt-1">
+                                            Location search needs FOLIO location UUIDs in locations.js.
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {searchType !== 'location' && (
