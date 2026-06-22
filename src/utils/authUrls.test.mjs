@@ -19,12 +19,12 @@ assert.equal(
 
 assert.equal(
   buildAuthRedirectUrl(undefined, 'https://localhost:5173/gadgets-to-go/admin/smith'),
-  `${DEV_AUTH_URL}?return_url=https%3A%2F%2Flocalhost%3A5173%2Fgadgets-to-go%2Fadmin%2Fsmith`,
+  `${DEV_AUTH_URL}?port=5173`,
 );
 
 assert.equal(
-  buildAuthRedirectUrl(undefined, 'https://127.0.0.1:5173/gadgets-to-go/admin/smith'),
-  `${DEV_AUTH_URL}?return_url=https%3A%2F%2F127.0.0.1%3A5173%2Fgadgets-to-go%2Fadmin%2Fsmith`,
+  buildAuthRedirectUrl(undefined, 'https://127.0.0.1:5174/gadgets-to-go/admin/smith'),
+  `${DEV_AUTH_URL}?port=5174`,
 );
 
 assert.equal(
@@ -33,8 +33,8 @@ assert.equal(
 );
 
 assert.equal(
-  buildAuthRedirectUrl('http://localhost:8000/admin/authorize-dev.php', 'https://localhost:5173/gadgets-to-go/admin/smith'),
-  'http://localhost:8000/admin/authorize-dev.php?return_url=https%3A%2F%2Flocalhost%3A5173%2Fgadgets-to-go%2Fadmin%2Fsmith',
+  buildAuthRedirectUrl('https://libtools2.smith.edu/gadgets-to-go/backend/admin/authorize-dev.php', 'https://localhost:5173/gadgets-to-go/admin/smith'),
+  'https://libtools2.smith.edu/gadgets-to-go/backend/admin/authorize-dev.php?port=5173',
 );
 
 console.log('auth URL utilities passed');
