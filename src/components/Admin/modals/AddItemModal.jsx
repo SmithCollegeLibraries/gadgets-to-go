@@ -43,6 +43,11 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
 
     const handleSearch = async () => {
         if (!searchQuery && searchType !== 'location') return;
+        if (searchType === 'location' && !location) {
+            toast.warning('Please select a location before searching.');
+            return;
+        }
+
         setIsSearching(true);
         let queryUrl = `https://libtools2.smith.edu/folio/web/search/search-inventory?query=`;
         if (searchType === 'title') queryUrl += `(title all "${searchQuery}")`;
@@ -168,6 +173,7 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
                                         value={location}
                                         onChange={(val) => setLocation(val)}
                                         placeholder="Type to search location..."
+                                        idField="code"
                                         className="form-control-lg"
                                     />
                                 </div>
