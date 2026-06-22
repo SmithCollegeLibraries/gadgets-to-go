@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
     Modal, ModalHeader, ModalBody, ModalFooter,
     Row, Col, Label, Input, Button, Table
@@ -9,6 +9,7 @@ import PropTypes from 'prop-types';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import SearchableSelect from '../../Common/SearchableSelect';
+import MultiSelectFilter from '../../Common/MultiSelectFilter';
 import { locations } from '../../../data/locations';
 
 // ReactQuill toolbar configuration
@@ -29,7 +30,7 @@ const quillFormats = [
   'link'
 ];
 
-const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInventory, filteredBranches }) => {
+const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInventory, filteredBranches, filterGroups = [] }) => {
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
     const [searchType, setSearchType] = useState('title');
@@ -38,6 +39,7 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
     const [selectedItemsData, setSelectedItemsData] = useState({});
     const [isSearching, setIsSearching] = useState(false);
     const [batchBranch, setBatchBranch] = useState('');
+    const [batchFilterOptionIds, setBatchFilterOptionIds] = useState([]);
 
     const handleSearch = async () => {
         if (!searchQuery && searchType !== 'location') return;
@@ -85,6 +87,7 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
             if (batchBranch) {
                 form.append('branches[]', batchBranch);
             }
+            batchFilterOptionIds.forEach(id => form.append('filter_option_ids[]', id));
             form.append('sort_order', 9999); // Placeholder, user can reorder.
 
             if (image) form.append('image', image);
@@ -106,6 +109,7 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
         setSearchResults([]);
         setSelectedItemsData({});
         setBatchBranch('');
+        setBatchFilterOptionIds([]);
         toggle();
     };
 
@@ -114,6 +118,15 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
         setLocation('');
         setSearchResults([]);
         setSelectedItemsData({});
+        setBatchFilterOptionIds([]);
+    };
+
+    const handleFilterGroupChange = (group, selectedOptionIds) => {
+        const groupOptionIds = new Set(group.options.map(option => Number(option.id)));
+        setBatchFilterOptionIds(previous => {
+            const otherGroupIds = previous.filter(id => !groupOptionIds.has(Number(id)));
+            return [...otherGroupIds, ...selectedOptionIds.map(Number)];
+        });
     };
 
     return (
@@ -198,6 +211,31 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
                             </div>
                         </div>
 
+                        {filterGroups.length > 0 && (
+                            <div className="mb-4 p-3 bg-light border rounded">
+                                <Label className="fw-bold mb-3 text-secondary">
+                                    <i className="bi bi-tags me-2"></i>
+                                    Assign Filters to Selected Items
+                                </Label>
+                                <Row className="g-3">
+                                    {filterGroups.map(group => (
+                                        <Col md={6} lg={4} key={group.id}>
+                                            <MultiSelectFilter
+                                                label={group.name}
+                                                options={group.options}
+                                                idField="id"
+                                                selectedValues={batchFilterOptionIds.filter(id => (
+                                                    group.options.some(option => Number(option.id) === Number(id))
+                                                ))}
+                                                onChange={(selectedIds) => handleFilterGroupChange(group, selectedIds)}
+                                                placeholder={`Select ${group.name}`}
+                                            />
+                                        </Col>
+                                    ))}
+                                </Row>
+                            </div>
+                        )}
+
                         <div className="table-responsive border rounded shadow-sm">
                             <Table hover className="mb-0 align-middle">
                                 <thead className="bg-light sticky-top">
@@ -274,7 +312,8 @@ AddItemModal.propTypes = {
     token: PropTypes.string.isRequired,
     mapLocations: PropTypes.string,
     refreshInventory: PropTypes.func.isRequired,
-    filteredBranches: PropTypes.array.isRequired
+    filteredBranches: PropTypes.array.isRequired,
+    filterGroups: PropTypes.array,
 };
 
 export default AddItemModal;
