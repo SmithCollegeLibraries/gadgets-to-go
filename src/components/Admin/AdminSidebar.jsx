@@ -1,6 +1,6 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import classnames from 'classnames';
+import PropTypes from 'prop-types';
 import './AdminSidebar.css';
 
 const AdminSidebar = ({ activeTab, setActiveTab }) => {
@@ -8,6 +8,7 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
         { id: 'inventory', label: 'Inventory Management', icon: '📦' },
         { id: 'styles', label: 'Style Editor', icon: '🎨' },
         { id: 'branches', label: 'Branch Management', icon: '🏛️' },
+        { id: 'filters', label: 'Filter Options', icon: '🔎' },
         { id: 'users', label: 'User Management', icon: '👥' },
     ];
 
@@ -38,6 +39,11 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
             </div>
         </aside>
     );
+};
+
+AdminSidebar.propTypes = {
+    activeTab: PropTypes.string.isRequired,
+    setActiveTab: PropTypes.func.isRequired,
 };
 
 export default AdminSidebar;

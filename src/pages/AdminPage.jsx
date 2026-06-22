@@ -10,13 +10,14 @@ import './AdminPage.css'; // Import custom CSS for additional styling
 import useFetchInventory from '../hooks/useFetchInventory';
 import useFetchStyles from '../hooks/useFetchStyles';
 import useFetchLayoutData from '../hooks/useFetchLayoutData';
+import useFetchCustomFilters from '../hooks/useFetchCustomFilters';
 import InventoryTab from '../components/Admin/tabs/InventoryTab';
 // import AddItemTab from '../components/Admin/tabs/AddItemTab'; // Removed
 import EditStylesTab from '../components/Admin/tabs/EditStylesTab';
 import BranchManagementTab from '../components/Admin/tabs/BranchManagementTab';
 import UserManagementTab from '../components/Admin/tabs/UserManagementTab';
+import FilterOptionsTab from '../components/Admin/tabs/FilterOptionsTab';
 import SchoolPage from './SchoolPage';
-import SaveChangesButton from '../components/Admin/SaveChangesButton'; // If you have a save button component
 import useTokenValidation from '../hooks/useTokenValidation';
 
 function AdminPage() {
@@ -39,6 +40,7 @@ function AdminPage() {
   const [originalStyles, setOriginalStyles] = useState({});
   const [originalLayoutData, setOriginalLayoutData] = useState([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [filterRefreshTrigger, setFilterRefreshTrigger] = useState(0);
 
   const [localStyles, setLocalStyles] = useState({
     titleColor: '#000000',
@@ -62,6 +64,7 @@ function AdminPage() {
   const [inventoryData] = useFetchInventory(baseUrl, mapLocations, refreshTrigger);
   const [styles] = useFetchStyles(baseUrl, mapLocations, {});
   const [layoutData] = useFetchLayoutData(baseUrl, mapLocations);
+  const [filterGroups] = useFetchCustomFilters(baseUrl, mapLocations, token, filterRefreshTrigger);
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -138,6 +141,10 @@ function AdminPage() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const refreshFilters = () => {
+    setFilterRefreshTrigger((prev) => prev + 1);
+  };
+
 
   const localStylesArray = Object.keys(localStyles).map((key) => ({
     type: key,
@@ -155,6 +162,7 @@ function AdminPage() {
             {activeTab === 'inventory' && 'Inventory Management'}
             {activeTab === 'styles' && 'Style Editor'}
             {activeTab === 'branches' && 'Branch & Location Management'}
+            {activeTab === 'filters' && 'Filter Options'}
             {activeTab === 'users' && 'User Management'}
           </h1>
           <div className="user-profile d-flex align-items-center gap-3">
@@ -192,6 +200,7 @@ function AdminPage() {
                 refreshInventory={refreshInventory}
                 setLocalInventoryData={setLocalInventoryData}
                 mapLocations={mapLocations}
+                filterGroups={filterGroups}
               />
             </div>
           )}
@@ -248,6 +257,16 @@ function AdminPage() {
                 baseUrl={baseUrl}
                 token={token}
                 mapLocations={mapLocations}
+              />
+            </div>
+          )}
+          {activeTab === 'filters' && (
+            <div className="admin-card">
+              <FilterOptionsTab
+                baseUrl={baseUrl}
+                token={token}
+                mapLocations={mapLocations}
+                onFiltersChanged={refreshFilters}
               />
             </div>
           )}

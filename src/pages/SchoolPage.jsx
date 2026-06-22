@@ -4,17 +4,23 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   Container, Row, Col, Card, CardBody, CardTitle, CardText,
-  Input, InputGroup, InputGroupText, Badge, Button, Spinner,
-  ButtonGroup, Table
+  Input, InputGroup, InputGroupText, Badge, Button, Table
 } from 'reactstrap';
 import { ArrowUp } from 'lucide-react';
 import useSchoolStore from '../store/schoolStore';
 import ItemModal from '../components/ItemModal.jsx';
 import LoginButton from '../components/StaffLogin.jsx';
+import MultiSelectFilter from '../components/Common/MultiSelectFilter.jsx';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import PropTypes from 'prop-types';
 import { branches } from '../data/branches';
+import useFetchCustomFilters from '../hooks/useFetchCustomFilters';
+import {
+  buildCustomFilterQueryParams,
+  doesItemMatchSelectedFilters,
+  getSelectedCustomFiltersFromQuery,
+} from '../utils/customFilters';
 
 // Helper to map school param to Branch Prefix
 const getBranchPrefix = (schoolParam) => {
@@ -37,6 +43,17 @@ const getLocationName = (code) => {
     'UMA': 'UMass Amherst'
   };
   return map[code] || code;
+};
+
+const getOwnerCode = (schoolParam) => {
+  const map = {
+    'smith': 'SMC',
+    'mtholyoke': 'MHC',
+    'amherst': 'AMH',
+    'hampshire': 'HMC',
+    'umass': 'UMA'
+  };
+  return map[schoolParam] || '';
 };
 
 const formatBranchName = (code) => {
@@ -72,7 +89,6 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
     fetchInventoryData,
     isLoading,
     isLayoutLoading,
-    isInventoryLoading,
     baseUrl,
   } = useSchoolStore();
 
@@ -123,11 +139,23 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
   const [showAvailableOnly, setShowAvailableOnly] = useState(initialState.avail);
   const [groupByBranch, setGroupByBranch] = useState(initialState.group);
   const [viewMode, setViewMode] = useState(initialState.view); // 'grid' or 'list'
+  const [selectedCustomFilters, setSelectedCustomFilters] = useState({});
+  const [filterGroups] = useFetchCustomFilters(baseUrl, getOwnerCode(school), null);
+
+  useEffect(() => {
+    if (filterGroups.length === 0) {
+      setSelectedCustomFilters({});
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    setSelectedCustomFilters(getSelectedCustomFiltersFromQuery(params, filterGroups));
+  }, [filterGroups, location.search]);
 
   // Sync State to URL
   useEffect(() => {
     if (!isPreview) {
-      const params = new URLSearchParams(location.search);
+      let params = new URLSearchParams(location.search);
 
       // Update params based on state
       if (searchQuery) params.set('q', searchQuery); else params.delete('q');
@@ -135,12 +163,15 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
       if (showAvailableOnly) params.set('avail', 'true'); else params.delete('avail');
       if (groupByBranch) params.set('group', 'true'); else params.delete('group');
       if (viewMode) params.set('view', viewMode); else params.delete('view');
+      if (filterGroups.length > 0) {
+        params = buildCustomFilterQueryParams(params, selectedCustomFilters);
+      }
 
       // Preserve folio_id (handled by modal logic mostly, but good to keep clean)
       // Note: The modal logic also updates the URL. We use replace to avoid history stack spam.
       navigate({ search: params.toString() }, { replace: true });
     }
-  }, [searchQuery, selectedBranch, showAvailableOnly, groupByBranch, viewMode, isPreview]);
+  }, [searchQuery, selectedBranch, showAvailableOnly, groupByBranch, viewMode, selectedCustomFilters, filterGroups, isPreview, location.search, navigate]);
 
   // Determine the effective data based on isPreview
   const effectiveInventoryData = isPreview ? customInventoryData : inventoryData;
@@ -275,9 +306,10 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
       const itemBranches = Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : []);
       const matchesBranch = selectedBranch ? itemBranches.includes(selectedBranch) : true;
       const matchesAvailability = showAvailableOnly ? (availability[item.folio_id]?.available > 0) : true;
-      return matchesSearch && matchesBranch && matchesAvailability;
+      const matchesCustomFilters = doesItemMatchSelectedFilters(item, selectedCustomFilters, filterGroups);
+      return matchesSearch && matchesBranch && matchesAvailability && matchesCustomFilters;
     });
-  }, [effectiveInventoryData, searchQuery, selectedBranch, showAvailableOnly, availability]);
+  }, [effectiveInventoryData, searchQuery, selectedBranch, showAvailableOnly, availability, selectedCustomFilters, filterGroups]);
 
   const groupedItems = useMemo(() => {
     if (!groupByBranch) return null;
@@ -316,8 +348,6 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
       navigate({ search: params.toString() });
     }
   };
-
-  const getBranchName = (code) => branches.find(b => b.code === code)?.name || code;
 
   const renderItemCard = (item) => {
     const avail = availability[item.folio_id];
@@ -552,6 +582,27 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                   </Col>
                 </Row>
 
+                {filterGroups.length > 0 && (
+                  <Row className="g-3 align-items-start mb-3">
+                    {filterGroups.map((group) => (
+                      <Col md={4} key={group.id}>
+                        <MultiSelectFilter
+                          label={group.name}
+                          options={group.options}
+                          selectedValues={selectedCustomFilters[group.slug] || []}
+                          onChange={(selectedValues) => {
+                            setSelectedCustomFilters((previous) => ({
+                              ...previous,
+                              [group.slug]: selectedValues,
+                            }));
+                          }}
+                          placeholder={`All ${group.name}`}
+                        />
+                      </Col>
+                    ))}
+                  </Row>
+                )}
+
                 {/* Row 2: Controls */}
                 <Row>
                   <Col xs={12} className="d-flex justify-content-end align-items-center gap-3 flex-wrap">
@@ -629,7 +680,7 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                   <div className="text-muted mb-3" aria-hidden="true"><i className="bi bi-inbox display-1"></i></div>
                   <h2 className="text-secondary">No items found</h2>
                   <p className="text-muted">Try adjusting your search or filters.</p>
-                  <Button color="outline-primary" onClick={() => { setSearchQuery(''); setSelectedBranch(''); setShowAvailableOnly(false); }}>Clear Filters</Button>
+                  <Button color="outline-primary" onClick={() => { setSearchQuery(''); setSelectedBranch(''); setShowAvailableOnly(false); setSelectedCustomFilters({}); }}>Clear Filters</Button>
                 </div>
               ) : groupByBranch ? (
                 Object.keys(groupedItems).sort().map(branchCode => (

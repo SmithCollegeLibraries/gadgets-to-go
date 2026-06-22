@@ -10,6 +10,7 @@ import { toast } from 'react-toastify';
 import { locations } from '../../../data/locations';
 import { branches } from '../../../data/branches';
 import SearchableSelect from '../../Common/SearchableSelect';
+import MultiSelectFilter from '../../Common/MultiSelectFilter';
 import AddItemModal from '../modals/AddItemModal';
 import {
   DndContext,
@@ -52,7 +53,7 @@ const stripHtml = (html) => {
   return tmp.textContent || tmp.innerText || '';
 };
 
-function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory, setLocalInventoryData, mapLocations }) {
+function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory, setLocalInventoryData, mapLocations, filterGroups = [] }) {
   const [viewMode, setViewMode] = useState('list');
   const [groupMode, setGroupMode] = useState(false); // New: Group by Branch
   const [editableItem, setEditableItem] = useState(null);
@@ -342,6 +343,8 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
         if (branches.length > 0) {
           branches.forEach(branch => f.append('branches[]', branch));
         }
+        const filterOptionIds = Array.isArray(original.filter_option_ids) ? original.filter_option_ids : [];
+        filterOptionIds.forEach(id => f.append('filter_option_ids[]', id));
         f.append('folio_id', original.folio_id);
         f.append('sort_order', u.sort_order);
 
@@ -393,7 +396,10 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
       description: item.description,
       sort_order: item.sort_order,
       owner: item.owner,
-      branches: Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : []) // Handle both old and new format
+      branches: Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : []), // Handle both old and new format
+      filterOptionIds: Array.isArray(item.filter_option_ids)
+        ? item.filter_option_ids.map(Number)
+        : (Array.isArray(item.custom_filters) ? item.custom_filters.map(filter => Number(filter.id)) : [])
     });
     setIsEditModalOpen(true);
   };
@@ -420,6 +426,17 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
       branches: prev.branches.filter(b => b !== branchToRemove)
     }));
   }
+
+  const handleFilterGroupChange = (group, selectedOptionIds) => {
+    const groupOptionIds = new Set(group.options.map(option => Number(option.id)));
+    setFormData(prev => {
+      const existingOtherGroupIds = (prev.filterOptionIds || []).filter(id => !groupOptionIds.has(Number(id)));
+      return {
+        ...prev,
+        filterOptionIds: [...existingOtherGroupIds, ...selectedOptionIds.map(Number)],
+      };
+    });
+  };
 
   const handleImageChange = (e) => {
     if (e.target.files[0]) setImageFile(e.target.files[0]);
@@ -466,6 +483,9 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
       // Send branches as array
       if (Array.isArray(formData.branches) && formData.branches.length > 0) {
         formData.branches.forEach(branch => form.append('branches[]', branch));
+      }
+      if (Array.isArray(formData.filterOptionIds) && formData.filterOptionIds.length > 0) {
+        formData.filterOptionIds.forEach(id => form.append('filter_option_ids[]', id));
       }
       form.append('folio_id', editableItem.folio_id);
       form.append('aleph_id', editableItem.aleph_id || '');
@@ -955,6 +975,30 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
                       <small className="text-muted">Select multiple branch locations for this item</small>
                     </FormGroup>
                   </Col>
+                  {filterGroups.length > 0 && (
+                    <Col md={12}>
+                      <div className="border-top pt-3 mt-2">
+                        <Label className="fw-bold">Custom Filters</Label>
+                        <div className="row g-3">
+                          {filterGroups.map((group) => (
+                            <Col md={6} key={group.id}>
+                              <MultiSelectFilter
+                                label={group.name}
+                                options={group.options}
+                                idField="id"
+                                selectedValues={(formData.filterOptionIds || []).filter(id => (
+                                  group.options.some(option => Number(option.id) === Number(id))
+                                ))}
+                                onChange={(selectedIds) => handleFilterGroupChange(group, selectedIds)}
+                                placeholder={`Select ${group.name}`}
+                              />
+                            </Col>
+                          ))}
+                        </div>
+                        <small className="text-muted d-block mt-2">Select all filter options that should apply to this item.</small>
+                      </div>
+                    </Col>
+                  )}
                 </Row>
               </Col>
             </Row>
@@ -975,6 +1019,7 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
         mapLocations={mapLocations}
         refreshInventory={refreshInventory}
         filteredBranches={filteredBranches}
+        filterGroups={filterGroups}
       />
     </div>
   );
@@ -988,6 +1033,7 @@ InventoryTab.propTypes = {
   refreshInventory: PropTypes.func.isRequired,
   setLocalInventoryData: PropTypes.func.isRequired,
   mapLocations: PropTypes.string,
+  filterGroups: PropTypes.array,
 };
 
 // Note: SortableRow is defined inside InventoryTab to access closures
