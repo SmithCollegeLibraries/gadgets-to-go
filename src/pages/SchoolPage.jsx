@@ -643,7 +643,7 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                   </div>
                 )}
 
-                {/* Row 2: Controls */}
+                {/* Row 3: Controls */}
                 <Row>
                   <Col xs={12} className="d-flex justify-content-end align-items-center gap-3 flex-wrap">
 
