@@ -10,7 +10,7 @@ import { ArrowUp } from 'lucide-react';
 import useSchoolStore from '../store/schoolStore';
 import ItemModal from '../components/ItemModal.jsx';
 import LoginButton from '../components/StaffLogin.jsx';
-import MultiSelectFilter from '../components/Common/MultiSelectFilter.jsx';
+import CombinedFilterDropdown from '../components/Common/CombinedFilterDropdown.jsx';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import PropTypes from 'prop-types';
@@ -348,6 +348,16 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
     }));
   };
 
+  const toggleCustomFilterValue = (groupSlug, optionSlug) => {
+    setSelectedCustomFilters((previous) => {
+      const current = previous[groupSlug] || [];
+      const next = current.includes(optionSlug)
+        ? current.filter((value) => value !== optionSlug)
+        : [...current, optionSlug];
+      return { ...previous, [groupSlug]: next };
+    });
+  };
+
   // Handlers
   const toggleModal = () => {
     setSelectedItem(null);
@@ -602,23 +612,17 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                       ))}
                     </Input>
                   </Col>
-                  {filterGroups.map((group) => (
-                    <Col xs={12} sm={6} md key={group.id}>
-                      <MultiSelectFilter
-                        ariaLabel={`Filter by ${group.name}`}
-                        options={group.options}
-                        selectedValues={selectedCustomFilters[group.slug] || []}
-                        onChange={(selectedValues) => {
-                          setSelectedCustomFilters((previous) => ({
-                            ...previous,
-                            [group.slug]: selectedValues,
-                          }));
-                        }}
-                        placeholder={`All ${group.name}`}
-                        showSelectedBadges={false}
+                  {filterGroups.length > 0 && (
+                    <Col xs={12} sm={6} md>
+                      <CombinedFilterDropdown
+                        groups={filterGroups}
+                        selectedByGroup={selectedCustomFilters}
+                        onToggle={toggleCustomFilterValue}
+                        placeholder="All Filters"
+                        ariaLabel="Filter items"
                       />
                     </Col>
-                  ))}
+                  )}
                 </Row>
 
                 {/* Active custom-filter chips — shared row keeps the controls from reflowing */}
