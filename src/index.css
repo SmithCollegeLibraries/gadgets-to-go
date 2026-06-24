@@ -34,7 +34,7 @@ h1 {
   line-height: 1.1;
 }
 
-button {
+button:not(.btn):not(.form-select):not(.btn-close) {
   border-radius: 8px;
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
@@ -46,7 +46,7 @@ button {
   transition: border-color 0.25s;
 }
 
-button:hover {
+button:not(.btn):not(.form-select):not(.btn-close):hover {
   border-color: #646cff;
 }
 
@@ -68,7 +68,7 @@ button:focus-visible {
     color: #747bff;
   }
 
-  button {
+  button:not(.btn):not(.form-select):not(.btn-close) {
     background-color: #f9f9f9;
   }
 }
