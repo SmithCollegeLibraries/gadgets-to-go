@@ -10,7 +10,12 @@ import { ArrowUp } from 'lucide-react';
 import useSchoolStore from '../store/schoolStore';
 import ItemModal from '../components/ItemModal.jsx';
 import LoginButton from '../components/StaffLogin.jsx';
-import CombinedFilterDropdown from '../components/Common/CombinedFilterDropdown.jsx';
+import MultiSelectDropdown from '../components/Common/MultiSelectDropdown.jsx';
+import {
+  getSelectedBranchesFromQuery,
+  buildBranchQueryParams,
+  doesItemMatchSelectedBranches,
+} from '../utils/branchFilters';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import PropTypes from 'prop-types';
@@ -109,7 +114,7 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
     const params = new URLSearchParams(location.search);
     return {
       q: params.get('q') || '',
-      branch: params.get('branch') || '',
+      branches: getSelectedBranchesFromQuery(params),
       avail: params.get('avail') === 'true',
       group: params.get('group') === 'true',
       view: params.get('view') || 'grid'
@@ -135,7 +140,7 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
 
   // Filter States (Initialized from URL)
   const [searchQuery, setSearchQuery] = useState(initialState.q);
-  const [selectedBranch, setSelectedBranch] = useState(initialState.branch);
+  const [selectedBranches, setSelectedBranches] = useState(initialState.branches);
   const [showAvailableOnly, setShowAvailableOnly] = useState(initialState.avail);
   const [groupByBranch, setGroupByBranch] = useState(initialState.group);
   const [viewMode, setViewMode] = useState(initialState.view); // 'grid' or 'list'
@@ -159,7 +164,7 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
 
       // Update params based on state
       if (searchQuery) params.set('q', searchQuery); else params.delete('q');
-      if (selectedBranch) params.set('branch', selectedBranch); else params.delete('branch');
+      params = buildBranchQueryParams(params, selectedBranches);
       if (showAvailableOnly) params.set('avail', 'true'); else params.delete('avail');
       if (groupByBranch) params.set('group', 'true'); else params.delete('group');
       if (viewMode) params.set('view', viewMode); else params.delete('view');
@@ -171,7 +176,7 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
       // Note: The modal logic also updates the URL. We use replace to avoid history stack spam.
       navigate({ search: params.toString() }, { replace: true });
     }
-  }, [searchQuery, selectedBranch, showAvailableOnly, groupByBranch, viewMode, selectedCustomFilters, filterGroups, isPreview, location.search, navigate]);
+  }, [searchQuery, selectedBranches, showAvailableOnly, groupByBranch, viewMode, selectedCustomFilters, filterGroups, isPreview, location.search, navigate]);
 
   // Determine the effective data based on isPreview
   const effectiveInventoryData = isPreview ? customInventoryData : inventoryData;
@@ -302,14 +307,12 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
   const filteredItems = useMemo(() => {
     return effectiveInventoryData.filter(item => {
       const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
-      // Handle both old single branch and new branches array
-      const itemBranches = Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : []);
-      const matchesBranch = selectedBranch ? itemBranches.includes(selectedBranch) : true;
+      const matchesBranch = doesItemMatchSelectedBranches(item, selectedBranches);
       const matchesAvailability = showAvailableOnly ? (availability[item.folio_id]?.available > 0) : true;
       const matchesCustomFilters = doesItemMatchSelectedFilters(item, selectedCustomFilters, filterGroups);
       return matchesSearch && matchesBranch && matchesAvailability && matchesCustomFilters;
     });
-  }, [effectiveInventoryData, searchQuery, selectedBranch, showAvailableOnly, availability, selectedCustomFilters, filterGroups]);
+  }, [effectiveInventoryData, searchQuery, selectedBranches, showAvailableOnly, availability, selectedCustomFilters, filterGroups]);
 
   const groupedItems = useMemo(() => {
     if (!groupByBranch) return null;
@@ -357,6 +360,31 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
       return { ...previous, [groupSlug]: next };
     });
   };
+
+  const branchGroup = useMemo(() => ([{
+    slug: 'branch',
+    name: 'Libraries',
+    options: filteredBranches.map((b) => ({ slug: b.code, name: b.name })),
+  }]), [filteredBranches]);
+
+  const selectedBranchesByGroup = useMemo(() => ({ branch: selectedBranches }), [selectedBranches]);
+
+  const toggleBranchValue = (groupSlug, code) => {
+    setSelectedBranches((previous) => (
+      previous.includes(code) ? previous.filter((value) => value !== code) : [...previous, code]
+    ));
+  };
+
+  const removeBranchValue = (code) => {
+    setSelectedBranches((previous) => previous.filter((value) => value !== code));
+  };
+
+  const activeBranchChips = useMemo(() => (
+    selectedBranches.map((code) => {
+      const branch = filteredBranches.find((b) => b.code === code);
+      return { code, label: branch ? branch.name : code };
+    })
+  ), [selectedBranches, filteredBranches]);
 
   // Handlers
   const toggleModal = () => {
@@ -598,23 +626,17 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                 {/* Row 2: Unified filter row — branch + custom filters as equal-width columns */}
                 <Row className="g-3 mb-3">
                   <Col xs={12} sm={6} md>
-                    <label htmlFor="branch-filter" className="visually-hidden">Filter by library location</label>
-                    <Input
-                      id="branch-filter"
-                      type="select"
-                      value={selectedBranch}
-                      onChange={(e) => setSelectedBranch(e.target.value)}
-                      aria-label="Filter by library location"
-                    >
-                      <option value="">All Libraries</option>
-                      {filteredBranches.map(b => (
-                        <option key={b.id} value={b.code}>{b.name}</option>
-                      ))}
-                    </Input>
+                    <MultiSelectDropdown
+                      groups={branchGroup}
+                      selectedByGroup={selectedBranchesByGroup}
+                      onToggle={toggleBranchValue}
+                      placeholder="All Libraries"
+                      ariaLabel="Filter by library location"
+                    />
                   </Col>
                   {filterGroups.length > 0 && (
                     <Col xs={12} sm={6} md>
-                      <CombinedFilterDropdown
+                      <MultiSelectDropdown
                         groups={filterGroups}
                         selectedByGroup={selectedCustomFilters}
                         onToggle={toggleCustomFilterValue}
@@ -626,8 +648,24 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                 </Row>
 
                 {/* Active custom-filter chips — shared row keeps the controls from reflowing */}
-                {activeCustomChips.length > 0 && (
+                {(activeBranchChips.length > 0 || activeCustomChips.length > 0) && (
                   <div className="d-flex flex-wrap gap-1 mb-3">
+                    {activeBranchChips.map((chip) => (
+                      <Badge
+                        key={`branch:${chip.code}`}
+                        color="light"
+                        className="text-dark border d-inline-flex align-items-center gap-1"
+                        pill
+                      >
+                        {chip.label}
+                        <button
+                          type="button"
+                          className="btn-close btn-close-sm"
+                          aria-label={`Remove ${chip.label}`}
+                          onClick={() => removeBranchValue(chip.code)}
+                        />
+                      </Badge>
+                    ))}
                     {activeCustomChips.map((chip) => (
                       <Badge
                         key={`${chip.groupSlug}:${chip.value}`}
@@ -724,7 +762,7 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
                   <div className="text-muted mb-3" aria-hidden="true"><i className="bi bi-inbox display-1"></i></div>
                   <h2 className="text-secondary">No items found</h2>
                   <p className="text-muted">Try adjusting your search or filters.</p>
-                  <Button color="outline-primary" onClick={() => { setSearchQuery(''); setSelectedBranch(''); setShowAvailableOnly(false); setSelectedCustomFilters({}); }}>Clear Filters</Button>
+                  <Button color="outline-primary" onClick={() => { setSearchQuery(''); setSelectedBranches([]); setShowAvailableOnly(false); setSelectedCustomFilters({}); }}>Clear Filters</Button>
                 </div>
               ) : groupByBranch ? (
                 Object.keys(groupedItems).sort().map(branchCode => (

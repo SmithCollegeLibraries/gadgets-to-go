@@ -1,17 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Badge, Input, ListGroup, ListGroupItem } from 'reactstrap';
 import PropTypes from 'prop-types';
+import { getMatchingOptions, getSelectedCount } from '../../utils/multiSelectDropdown';
 
-function CombinedFilterDropdown({
+function MultiSelectDropdown({
   groups,
   selectedByGroup,
   onToggle,
   placeholder = 'All Filters',
   ariaLabel,
+  searchThreshold = 8,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef(null);
+  const buttonRef = useRef(null);
+  const panelId = useId();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -25,63 +29,86 @@ function CombinedFilterDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const closeAndFocusTrigger = () => {
+    setIsOpen(false);
+    setSearchTerm('');
+    buttonRef.current?.focus();
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Escape' && isOpen) {
+      event.stopPropagation();
+      closeAndFocusTrigger();
+    }
+  };
+
   const isOptionSelected = (groupSlug, optionSlug) => (
     (selectedByGroup[groupSlug] || []).includes(optionSlug)
   );
 
-  const selectedCount = groups.reduce((total, group) => (
-    total + (selectedByGroup[group.slug] || []).length
-  ), 0);
-
-  const term = searchTerm.toLowerCase();
-  const matchingOptions = groups.flatMap((group) => (
-    group.options
-      .filter((option) => option.name.toLowerCase().includes(term))
-      .map((option) => ({ groupSlug: group.slug, option }))
-  ));
-
+  const selectedCount = getSelectedCount(groups, selectedByGroup);
+  const matchingOptions = getMatchingOptions(groups, searchTerm);
+  const totalOptions = groups.reduce((total, group) => total + group.options.length, 0);
+  const showSearch = totalOptions > searchThreshold;
   const hasSelection = selectedCount > 0;
+  const triggerLabel = ariaLabel || placeholder;
+  const accessibleLabel = hasSelection
+    ? `${triggerLabel}, ${selectedCount} selected`
+    : triggerLabel;
 
   return (
-    <div ref={containerRef} className="multi-select-filter position-relative">
+    <div
+      ref={containerRef}
+      className="multi-select-filter position-relative"
+      onKeyDown={handleKeyDown}
+    >
       <button
+        ref={buttonRef}
         type="button"
         className="form-select text-start"
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
-        aria-label={ariaLabel || placeholder}
+        aria-haspopup="true"
+        aria-controls={panelId}
+        aria-label={accessibleLabel}
       >
         <span className="text-truncate">{placeholder}</span>
         {hasSelection && <Badge color="primary" pill className="ms-2 align-middle">{selectedCount}</Badge>}
       </button>
 
       {isOpen && (
-        <div className="position-absolute w-100 bg-white border rounded shadow-sm mt-1" style={{ zIndex: 2000 }}>
-          <div className="p-2 border-bottom">
-            <Input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search options..."
-              bsSize="sm"
-              autoFocus
-            />
-          </div>
+        <div
+          id={panelId}
+          className="position-absolute w-100 bg-white border rounded shadow-sm mt-1"
+          style={{ zIndex: 2000 }}
+        >
+          {showSearch && (
+            <div className="p-2 border-bottom">
+              <Input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search options..."
+                bsSize="sm"
+                autoFocus
+              />
+            </div>
+          )}
           <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
             {matchingOptions.length > 0 ? (
               <ListGroup flush>
                 {matchingOptions.map(({ groupSlug, option }) => (
                   <ListGroupItem
                     key={`${groupSlug}:${option.slug}`}
+                    tag="label"
                     action
-                    className="d-flex align-items-center gap-2 small"
-                    onClick={() => onToggle(groupSlug, option.slug)}
+                    className="d-flex align-items-center gap-2 small mb-0"
                   >
                     <Input
                       type="checkbox"
+                      className="mt-0"
                       checked={isOptionSelected(groupSlug, option.slug)}
-                      readOnly
-                      aria-label={option.name}
+                      onChange={() => onToggle(groupSlug, option.slug)}
                     />
                     <span>{option.name}</span>
                   </ListGroupItem>
@@ -97,12 +124,13 @@ function CombinedFilterDropdown({
   );
 }
 
-CombinedFilterDropdown.propTypes = {
+MultiSelectDropdown.propTypes = {
   groups: PropTypes.array.isRequired,
   selectedByGroup: PropTypes.object.isRequired,
   onToggle: PropTypes.func.isRequired,
   placeholder: PropTypes.string,
   ariaLabel: PropTypes.string,
+  searchThreshold: PropTypes.number,
 };
 
-export default CombinedFilterDropdown;
+export default MultiSelectDropdown;
