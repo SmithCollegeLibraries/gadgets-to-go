@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node src/utils/customFilters.test.mjs && node src/utils/authUrls.test.mjs && node src/utils/folioSearch.test.mjs",
+    "test": "node src/utils/customFilters.test.mjs && node src/utils/authUrls.test.mjs && node src/utils/folioSearch.test.mjs && node src/data/locations.test.mjs && node src/data/branches.test.mjs && node src/utils/branchFilters.test.mjs && node src/utils/multiSelectDropdown.test.mjs",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
