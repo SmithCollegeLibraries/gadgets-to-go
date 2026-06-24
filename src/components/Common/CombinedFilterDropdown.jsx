@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Badge, Button, Input, ListGroup, ListGroupItem } from 'reactstrap';
+import { Badge, Input, ListGroup, ListGroupItem } from 'reactstrap';
 import PropTypes from 'prop-types';
 
 function CombinedFilterDropdown({
@@ -34,33 +34,26 @@ function CombinedFilterDropdown({
   ), 0);
 
   const term = searchTerm.toLowerCase();
-  const visibleGroups = groups
-    .map((group) => ({
-      ...group,
-      options: group.options.filter((option) => option.name.toLowerCase().includes(term)),
-    }))
-    .filter((group) => group.options.length > 0);
+  const matchingOptions = groups.flatMap((group) => (
+    group.options
+      .filter((option) => option.name.toLowerCase().includes(term))
+      .map((option) => ({ groupSlug: group.slug, option }))
+  ));
 
-  const showHeaders = groups.length > 1;
   const hasSelection = selectedCount > 0;
 
   return (
     <div ref={containerRef} className="multi-select-filter position-relative">
-      <Button
+      <button
         type="button"
-        color="secondary"
-        outline
-        className="w-100 d-flex justify-content-between align-items-center text-start text-dark bg-white border"
+        className="form-select text-start"
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
         aria-label={ariaLabel || placeholder}
       >
         <span className="text-truncate">{placeholder}</span>
-        <span className="d-flex align-items-center gap-2 flex-shrink-0">
-          {hasSelection && <Badge color="primary" pill>{selectedCount}</Badge>}
-          <i className={`bi ${isOpen ? 'bi-chevron-up' : 'bi-chevron-down'}`} aria-hidden="true"></i>
-        </span>
-      </Button>
+        {hasSelection && <Badge color="primary" pill className="ms-2 align-middle">{selectedCount}</Badge>}
+      </button>
 
       {isOpen && (
         <div className="position-absolute w-100 bg-white border rounded shadow-sm mt-1" style={{ zIndex: 2000 }}>
@@ -75,34 +68,25 @@ function CombinedFilterDropdown({
             />
           </div>
           <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-            {visibleGroups.length > 0 ? (
-              visibleGroups.map((group) => (
-                <div key={group.slug}>
-                  {showHeaders && (
-                    <div className="px-3 pt-2 pb-1 small fw-bold text-secondary text-uppercase">
-                      {group.name}
-                    </div>
-                  )}
-                  <ListGroup flush>
-                    {group.options.map((option) => (
-                      <ListGroupItem
-                        key={`${group.slug}:${option.slug}`}
-                        action
-                        className="d-flex align-items-center gap-2 small"
-                        onClick={() => onToggle(group.slug, option.slug)}
-                      >
-                        <Input
-                          type="checkbox"
-                          checked={isOptionSelected(group.slug, option.slug)}
-                          readOnly
-                          aria-label={option.name}
-                        />
-                        <span>{option.name}</span>
-                      </ListGroupItem>
-                    ))}
-                  </ListGroup>
-                </div>
-              ))
+            {matchingOptions.length > 0 ? (
+              <ListGroup flush>
+                {matchingOptions.map(({ groupSlug, option }) => (
+                  <ListGroupItem
+                    key={`${groupSlug}:${option.slug}`}
+                    action
+                    className="d-flex align-items-center gap-2 small"
+                    onClick={() => onToggle(groupSlug, option.slug)}
+                  >
+                    <Input
+                      type="checkbox"
+                      checked={isOptionSelected(groupSlug, option.slug)}
+                      readOnly
+                      aria-label={option.name}
+                    />
+                    <span>{option.name}</span>
+                  </ListGroupItem>
+                ))}
+              </ListGroup>
             ) : (
               <div className="text-muted small text-center py-2">No matching options</div>
             )}
