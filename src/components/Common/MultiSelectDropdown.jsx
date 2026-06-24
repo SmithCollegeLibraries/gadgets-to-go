@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Badge, Input, ListGroup, ListGroupItem } from 'reactstrap';
 import PropTypes from 'prop-types';
-import { getMatchingOptions, getSelectedCount } from '../../utils/multiSelectDropdown';
+import { getMatchingGroups, getSelectedCount } from '../../utils/multiSelectDropdown';
 
 function MultiSelectDropdown({
   groups,
@@ -47,9 +47,10 @@ function MultiSelectDropdown({
   );
 
   const selectedCount = getSelectedCount(groups, selectedByGroup);
-  const matchingOptions = getMatchingOptions(groups, searchTerm);
+  const matchingGroups = getMatchingGroups(groups, searchTerm);
   const totalOptions = groups.reduce((total, group) => total + group.options.length, 0);
   const showSearch = totalOptions > searchThreshold;
+  const showGroupHeaders = groups.length > 1;
   const hasSelection = selectedCount > 0;
   const triggerLabel = ariaLabel || placeholder;
   const accessibleLabel = hasSelection
@@ -95,25 +96,34 @@ function MultiSelectDropdown({
             </div>
           )}
           <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-            {matchingOptions.length > 0 ? (
-              <ListGroup flush>
-                {matchingOptions.map(({ groupSlug, option }) => (
-                  <ListGroupItem
-                    key={`${groupSlug}:${option.slug}`}
-                    tag="label"
-                    action
-                    className="d-flex align-items-center gap-2 small mb-0"
-                  >
-                    <Input
-                      type="checkbox"
-                      className="mt-0"
-                      checked={isOptionSelected(groupSlug, option.slug)}
-                      onChange={() => onToggle(groupSlug, option.slug)}
-                    />
-                    <span>{option.name}</span>
-                  </ListGroupItem>
-                ))}
-              </ListGroup>
+            {matchingGroups.length > 0 ? (
+              matchingGroups.map((group) => (
+                <div key={group.slug} role="group" aria-label={group.name}>
+                  {showGroupHeaders && (
+                    <div className="px-3 pt-2 pb-1 text-uppercase small fw-semibold text-muted bg-light border-bottom">
+                      {group.name}
+                    </div>
+                  )}
+                  <ListGroup flush tag="div">
+                    {group.options.map((option) => (
+                      <ListGroupItem
+                        key={`${group.slug}:${option.slug}`}
+                        tag="label"
+                        action
+                        className="d-flex align-items-center gap-2 small mb-0"
+                      >
+                        <Input
+                          type="checkbox"
+                          className="mt-0"
+                          checked={isOptionSelected(group.slug, option.slug)}
+                          onChange={() => onToggle(group.slug, option.slug)}
+                        />
+                        <span>{option.name}</span>
+                      </ListGroupItem>
+                    ))}
+                  </ListGroup>
+                </div>
+              ))
             ) : (
               <div className="text-muted small text-center py-2">No matching options</div>
             )}

@@ -4,12 +4,13 @@ export function getSelectedCount(groups = [], selectedByGroup = {}) {
   ), 0);
 }
 
-export function getMatchingOptions(groups = [], searchTerm = '') {
+export function getMatchingGroups(groups = [], searchTerm = '') {
   const term = String(searchTerm || '').toLowerCase();
 
-  return groups.flatMap((group) => (
-    group.options
-      .filter((option) => option.name.toLowerCase().includes(term))
-      .map((option) => ({ groupSlug: group.slug, option }))
-  ));
+  return groups
+    .map((group) => ({
+      ...group,
+      options: group.options.filter((option) => option.name.toLowerCase().includes(term)),
+    }))
+    .filter((group) => group.options.length > 0);
 }
