@@ -34,7 +34,7 @@ h1 {
   line-height: 1.1;
 }
 
-button:not(.btn):not(.form-select):not(.btn-close) {
+button:not(.btn):not(.form-select):not(.btn-close):not(.sidebar-link):not([class^="ql-"]):not([class*=" ql-"]) {
   border-radius: 8px;
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
@@ -46,7 +46,7 @@ button:not(.btn):not(.form-select):not(.btn-close) {
   transition: border-color 0.25s;
 }
 
-button:not(.btn):not(.form-select):not(.btn-close):hover {
+button:not(.btn):not(.form-select):not(.btn-close):not(.sidebar-link):not([class^="ql-"]):not([class*=" ql-"]):hover {
   border-color: #646cff;
 }
 
@@ -68,7 +68,7 @@ button:focus-visible {
     color: #747bff;
   }
 
-  button:not(.btn):not(.form-select):not(.btn-close) {
+  button:not(.btn):not(.form-select):not(.btn-close):not(.sidebar-link):not([class^="ql-"]):not([class*=" ql-"]) {
     background-color: #f9f9f9;
   }
 }
