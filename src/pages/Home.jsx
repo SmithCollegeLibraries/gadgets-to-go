@@ -4,7 +4,7 @@ import useSchoolStore from '../store/schoolStore';
 import amherstImage from '../../public/images/amherst.gif';
 import hampshireImage from '../../public/images/hampshire.gif';
 import mtholyokeImage from '../../public/images/mtholyoke.gif';
-import smithImage from '../../public/images/smith.gif';
+import smithImage from '../../public/images/SmithLogo-o.gif';
 import umassImage from '../../public/images/umass.gif';
 import './Home.css'; // Specific styles for the home page
 
