@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Table,
     Button,
@@ -18,6 +18,7 @@ import {
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import PropTypes from 'prop-types';
+import { Check, Pencil, Trash2, X } from 'lucide-react';
 
 const UserManagementTab = ({ baseUrl, token }) => {
     const [users, setUsers] = useState([]);
@@ -61,7 +62,7 @@ const UserManagementTab = ({ baseUrl, token }) => {
     }, [token]);
 
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
             let url = `${baseUrl}/user/index`;
@@ -84,11 +85,11 @@ const UserManagementTab = ({ baseUrl, token }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [baseUrl, filterType, token]);
 
     useEffect(() => {
         fetchUsers();
-    }, [filterType, baseUrl, token]);
+    }, [fetchUsers]);
 
     const handleAction = async (action, id) => {
         try {
@@ -176,7 +177,7 @@ const UserManagementTab = ({ baseUrl, token }) => {
     // Sorting Logic
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
-    const sortedUsers = React.useMemo(() => {
+    const sortedUsers = useMemo(() => {
         let sortableUsers = [...users];
         if (sortConfig.key !== null) {
             sortableUsers.sort((a, b) => {
@@ -212,7 +213,7 @@ const UserManagementTab = ({ baseUrl, token }) => {
     // Grouping Logic
     const [groupByInstitution, setGroupByInstitution] = useState(false);
 
-    const groupedUsers = React.useMemo(() => {
+    const groupedUsers = useMemo(() => {
         if (!groupByInstitution) return null;
         return sortedUsers.reduce((acc, user) => {
             const inst = user.institution || 'Other';
@@ -275,7 +276,7 @@ const UserManagementTab = ({ baseUrl, token }) => {
                                     onClick={() => handleEditClick(user.id)}
                                     aria-label={`Edit user ${user.username || user.email}`}
                                 >
-                                    <i className="bi bi-pencil me-1" aria-hidden="true"></i> Edit
+                                    <Pencil size={15} className="me-1" aria-hidden="true" /> Edit
                                 </Button>
                                 {user.approved !== 1 && (
                                     <Button
@@ -285,7 +286,7 @@ const UserManagementTab = ({ baseUrl, token }) => {
                                         onClick={() => handleAction('approve', user.id)}
                                         aria-label={`Approve user ${user.username || user.email}`}
                                     >
-                                        <i className="bi bi-check-lg me-1" aria-hidden="true"></i> Approve
+                                        <Check size={15} className="me-1" aria-hidden="true" /> Approve
                                     </Button>
                                 )}
                                 {user.approved !== 1 && (
@@ -296,7 +297,7 @@ const UserManagementTab = ({ baseUrl, token }) => {
                                         onClick={() => handleAction('reject', user.id)}
                                         aria-label={`Reject user ${user.username || user.email}`}
                                     >
-                                        <i className="bi bi-x-lg me-1" aria-hidden="true"></i> Reject
+                                        <X size={15} className="me-1" aria-hidden="true" /> Reject
                                     </Button>
                                 )}
                                 <Button
@@ -307,7 +308,7 @@ const UserManagementTab = ({ baseUrl, token }) => {
                                     onClick={() => handleDeleteClick(user)}
                                     aria-label={`Delete user ${user.username || user.email}`}
                                 >
-                                    <i className="bi bi-trash me-1" aria-hidden="true"></i> Delete
+                                    <Trash2 size={15} className="me-1" aria-hidden="true" /> Delete
                                 </Button>
                             </div>
                         </td>

@@ -82,4 +82,24 @@ assert.equal(
   true,
 );
 
+assert.equal(
+  doesItemMatchSelectedFilters(
+    { filter_option_ids: [102] },
+    { collections: ['mh-media-resources', 'mh-circulation-equipment'] },
+    groups,
+  ),
+  true,
+  'options selected within one group should match as OR',
+);
+
+assert.equal(
+  doesItemMatchSelectedFilters(
+    { filter_option_ids: [102] },
+    { collections: ['mh-circulation-equipment'], audience: ['advanced-users-only'] },
+    groups,
+  ),
+  false,
+  'options selected across groups should narrow as AND',
+);
+
 console.log('custom filter utilities passed');

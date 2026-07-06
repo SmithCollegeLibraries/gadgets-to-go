@@ -31,6 +31,14 @@ const quillFormats = [
   'link'
 ];
 
+const ownerLocationPrefixes = {
+    AMH: 'AC',
+    HMC: 'HC',
+    MHC: 'MH',
+    SMC: 'SC',
+    UMA: 'UM',
+};
+
 const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInventory, filteredBranches, filterGroups = [] }) => {
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -41,7 +49,9 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
     const [isSearching, setIsSearching] = useState(false);
     const [batchBranch, setBatchBranch] = useState('');
     const [batchFilterOptionIds, setBatchFilterOptionIds] = useState([]);
+    const ownerLocationPrefix = ownerLocationPrefixes[mapLocations] || '';
     const folioLocations = locations
+        .filter((item) => !ownerLocationPrefix || item.name.startsWith(`${ownerLocationPrefix} `) || item.name.startsWith(ownerLocationPrefix))
         .map((item) => ({
             ...item,
             folioLocationId: getLocationUuid(item),
@@ -74,6 +84,29 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
         }
     };
 
+    const buildUploadForm = (data) => {
+        const { item, description, image } = data;
+        const form = new FormData();
+        form.append('title', item.title);
+        form.append('folio_id', item.id);
+        form.append('description', description || '');
+        form.append('owner', mapLocations);
+        if (batchBranch) {
+            form.append('branches[]', batchBranch);
+        }
+        batchFilterOptionIds.forEach(id => form.append('filter_option_ids[]', id));
+        form.append('sort_order', 9999);
+
+        if (image) form.append('image', image);
+
+        return form;
+    };
+
+    const summarizeFailures = (failures) => {
+        const names = failures.map(({ item }) => item.title).slice(0, 3).join(', ');
+        return failures.length > 3 ? `${names}, and ${failures.length - 3} more` : names;
+    };
+
     const handleBatchUpload = async () => {
         const itemsToUpload = Object.values(selectedItemsData).filter(d => d.selected);
 
@@ -82,41 +115,40 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
             return;
         }
 
-        // Get current inventory count to set sort order (optional, passed from parent would be better but simple logic here is ok)
-        // Actually, InventoryTab logic was using inventoryData.length + 1. 
-        // We can just send a high number or let backend handle it, but for now let's use a safe default or ask backend to append.
-        // For simplicity, we'll send 9999 and let backend/drag-drop fix it, or we could fetch current count.
-        // Better: Just send 0 or let backend append. The previous logic was `inventoryData.length + 1`. 
-        // Since we don't have inventoryData here, we might want to pass it or just use 0.
-        // Let's rely on the user dragging to reorder or just standard append.
-
-        for (let data of itemsToUpload) {
-            const { item, description, image } = data;
-            const form = new FormData();
-            form.append('title', item.title);
-            form.append('folio_id', item.id);
-            form.append('description', description || '');
-            form.append('owner', mapLocations);
-            // Send branches as array
-            if (batchBranch) {
-                form.append('branches[]', batchBranch);
-            }
-            batchFilterOptionIds.forEach(id => form.append('filter_option_ids[]', id));
-            form.append('sort_order', 9999); // Placeholder, user can reorder.
-
-            if (image) form.append('image', image);
-
-            // Check if exists logic was in parent: if (inventoryData.find(inv => inv.folio_id === item.id)) continue;
-            // We can't easily check that here without passing entire inventory. 
-            // Assumption: Backend or user will handle duplicates. Or we can pass currentInventoryIds prop.
-
+        const results = await Promise.all(itemsToUpload.map(async (data) => {
             try {
-                await axios.post(`${baseUrl}/inventory/create`, form, { headers: { Authorization: `Bearer ${token}` } });
-            } catch (e) { console.error(e); }
+                await axios.post(`${baseUrl}/inventory/create`, buildUploadForm(data), {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                return { status: 'fulfilled', item: data.item };
+            } catch (error) {
+                console.error('Failed to add item:', data.item?.title, error);
+                return { status: 'rejected', item: data.item };
+            }
+        }));
+
+        const successes = results.filter(result => result.status === 'fulfilled');
+        const failures = results.filter(result => result.status === 'rejected');
+
+        if (successes.length > 0) {
+            refreshInventory();
         }
 
-        toast.success(`Added ${itemsToUpload.length} items successfully.`);
-        refreshInventory();
+        if (failures.length > 0) {
+            const failedIds = new Set(failures.map(({ item }) => String(item.id)));
+            setSelectedItemsData(previous => Object.fromEntries(
+                Object.entries(previous).filter(([itemId]) => failedIds.has(itemId))
+            ));
+
+            if (successes.length > 0) {
+                toast.warning(`Added ${successes.length} item${successes.length === 1 ? '' : 's'}; ${failures.length} failed: ${summarizeFailures(failures)}.`);
+            } else {
+                toast.error(`No items were added. Failed: ${summarizeFailures(failures)}.`);
+            }
+            return;
+        }
+
+        toast.success(`Added ${successes.length} item${successes.length === 1 ? '' : 's'} successfully.`);
 
         // Reset State
         setSearchQuery('');

@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+.env.staging
+
+# Local Five Colleges support artifacts
+backend/
+.playwright-mcp/
+*.sql
 
 # Editor directories and files
 .vscode/*

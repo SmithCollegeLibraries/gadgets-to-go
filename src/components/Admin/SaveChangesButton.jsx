@@ -1,14 +1,12 @@
-// SaveChangesButton.jsx
-import React from 'react';
 import { Button } from 'reactstrap';
 import axios from 'axios';
+import PropTypes from 'prop-types';
 
 function SaveChangesButton({
   localStyles,
   baseUrl,
   token,
   mapLocations,
-  localInventoryData,
 }) {
   const handleSaveChanges = async () => {
     try {
@@ -42,5 +40,12 @@ function SaveChangesButton({
     </Button>
   );
 }
+
+SaveChangesButton.propTypes = {
+  localStyles: PropTypes.object.isRequired,
+  baseUrl: PropTypes.string.isRequired,
+  token: PropTypes.string.isRequired,
+  mapLocations: PropTypes.string.isRequired,
+};
 
 export default SaveChangesButton;

@@ -1,6 +1,6 @@
 // SchoolPage.jsx
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   Container, Row, Col, Card, CardBody, CardTitle, CardText,
@@ -265,7 +265,7 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
   };
 
   // Availability Logic
-  const fetchItemAvailability = async (item) => {
+  const fetchItemAvailability = useCallback(async (item) => {
     try {
       const response = await fetch(`${baseUrl}/inventory/get-folio?id=${item.folio_id}`);
       const data = await response.json();
@@ -278,13 +278,13 @@ function SchoolPage({ isPreview = false, customStyles = {}, customInventoryData 
         [item.folio_id]: { available: availableCount, total: holding.length },
       }));
     } catch (error) { console.error('Error fetching availability:', error); }
-  };
+  }, [baseUrl]);
 
   useEffect(() => {
     effectiveInventoryData.forEach((item) => {
       if (!availability[item.folio_id]) fetchItemAvailability(item);
     });
-  }, [effectiveInventoryData]);
+  }, [availability, effectiveInventoryData, fetchItemAvailability]);
 
   // URL Handling for Modal
   useEffect(() => {

@@ -1,10 +1,7 @@
 import { useEffect } from 'react';
 import { jwtDecode } from "jwt-decode";
-import { useNavigate } from 'react-router-dom'; // If you're using React Router
 
 const useTokenValidation = () => {
-  const navigate = useNavigate(); // For programmatically navigating
-
   // Function to check if the token is expired
   const isTokenExpired = (token) => {
     if (!token) return true;

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Card, CardBody, CardTitle, Button, Table, Badge, Input, FormGroup, Label,
+  Card, CardBody, CardTitle, Button, Table, Badge, Input, FormGroup,
   Modal, ModalHeader, ModalBody, ModalFooter, Alert
 } from 'reactstrap';
 import axios from 'axios';
@@ -44,12 +44,7 @@ function BranchManagementTab({ baseUrl, token, mapLocations }) {
   const filteredBranches = getFilteredBranches();
   const filteredLocations = getFilteredLocations();
 
-  // Load enabled branches and locations from backend
-  useEffect(() => {
-    fetchEnabledItems();
-  }, [baseUrl, mapLocations]);
-
-  const fetchEnabledItems = async () => {
+  const fetchEnabledItems = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch disabled items from backend
@@ -69,7 +64,12 @@ function BranchManagementTab({ baseUrl, token, mapLocations }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [baseUrl, mapLocations, token]);
+
+  // Load enabled branches and locations from backend
+  useEffect(() => {
+    fetchEnabledItems();
+  }, [fetchEnabledItems]);
 
   const handleBranchToggle = (branchCode) => {
     setDisabledBranches(prev => {

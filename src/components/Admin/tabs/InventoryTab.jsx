@@ -1,5 +1,5 @@
 import {
-  Row, Col, Card, CardBody, CardTitle, CardText, Button, Input, FormGroup, Label, Modal, ModalHeader, ModalBody, ModalFooter, Table, ButtonGroup
+  Row, Col, Card, CardBody, CardTitle, Button, Input, FormGroup, Label, Modal, ModalHeader, ModalBody, ModalFooter, Table, ButtonGroup
 } from 'reactstrap';
 import PropTypes from 'prop-types';
 import { useState, useEffect } from 'react';
@@ -7,7 +7,7 @@ import axios from 'axios';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { toast } from 'react-toastify';
-import { locations } from '../../../data/locations';
+import { Filter, Pencil, Plus, Trash2 } from 'lucide-react';
 import { branches } from '../../../data/branches';
 import SearchableSelect from '../../Common/SearchableSelect';
 import MultiSelectFilter from '../../Common/MultiSelectFilter';
@@ -53,7 +53,20 @@ const stripHtml = (html) => {
   return tmp.textContent || tmp.innerText || '';
 };
 
-function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory, setLocalInventoryData, mapLocations, filterGroups = [] }) {
+const imageFormats = ['jpg', 'jpeg', 'png', 'gif'];
+
+const checkImageFormat = async (folioId) => {
+  for (let format of imageFormats) {
+    const imageUrl = `https://libtools2.smith.edu/gadgets-to-go/backend/images/${folioId}.${format}`;
+    try {
+      const response = await axios.get(imageUrl);
+      if (response.status === 200) return imageUrl;
+    } catch (error) { continue; }
+  }
+  return null;
+};
+
+function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory, mapLocations, filterGroups = [] }) {
   const [viewMode, setViewMode] = useState('list');
   const [groupMode, setGroupMode] = useState(false); // New: Group by Branch
   const [editableItem, setEditableItem] = useState(null);
@@ -62,9 +75,6 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
   const [imageSrcs, setImageSrcs] = useState({});
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  // const [selectedItemsData, setSelectedItemsData] = useState({}); // Removed unused
-  const [isSearching, setIsSearching] = useState(false);
-  const [batchBranch, setBatchBranch] = useState(''); // New: Branch for Batch Upload
 
   // --- Advanced Sorting & Reordering State ---
   const [localInventory, setLocalInventory] = useState([]);
@@ -74,12 +84,13 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [moveTargetId, setMoveTargetId] = useState('');
   const [movePosition, setMovePosition] = useState('after'); // 'before', 'after'
+  const [isBulkFilterModalOpen, setIsBulkFilterModalOpen] = useState(false);
+  const [bulkFilterOptionIds, setBulkFilterOptionIds] = useState([]);
+  const [replaceExistingFilters, setReplaceExistingFilters] = useState(false);
 
   // Custom Branch Sort State
   const [customBranchOrder, setCustomBranchOrder] = useState([]);
   const [isBranchOrderModalOpen, setIsBranchOrderModalOpen] = useState(false);
-
-  const imageFormats = ['jpg', 'jpeg', 'png', 'gif'];
 
   // Initialize custom branch order from filtered branches once
   useEffect(() => {
@@ -268,24 +279,6 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
     }
   };
 
-  // Move Item Up/Down
-  const moveItem = (index, direction) => {
-    // Find item in current view (might be filtered/sorted)
-    // Actually, operations should happen on `localInventory` index.
-    // If we are mapped inside a group, index is relative. Sorting logic needs to handle this.
-    // SIMPLIFICATION: Disable generic reordering when grouped or filtered?
-    // Let's assume reordering works on the linear `localInventory` list.
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= localInventory.length) return;
-
-    const newInventory = [...localInventory];
-    const [movedItem] = newInventory.splice(index, 1);
-    newInventory.splice(newIndex, 0, movedItem);
-
-    setLocalInventory(newInventory);
-    setHasUnsavedChanges(true);
-  };
-
   // Selection Checkbox
   const toggleSelection = (id) => {
     setSelectedItemIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -365,29 +358,23 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
 
 
   useEffect(() => {
+    const missingItems = inventoryData.filter((item) => (
+      !Object.prototype.hasOwnProperty.call(imageSrcs, item.id)
+    ));
+    if (missingItems.length === 0) return undefined;
+
+    let cancelled = false;
     const loadImages = async () => {
       const srcs = {};
-      for (let item of inventoryData) {
-        if (!imageSrcs[item.id]) {
-          const imageUrl = await checkImageFormat(item.folio_id);
-          srcs[item.id] = imageUrl;
-        }
+      for (let item of missingItems) {
+        const imageUrl = await checkImageFormat(item.folio_id);
+        srcs[item.id] = imageUrl;
       }
-      setImageSrcs(prev => ({ ...prev, ...srcs }));
+      if (!cancelled) setImageSrcs(prev => ({ ...prev, ...srcs }));
     };
-    if (inventoryData.length > 0) loadImages();
-  }, [inventoryData]);
-
-  const checkImageFormat = async (folioId) => {
-    for (let format of imageFormats) {
-      const imageUrl = `https://libtools2.smith.edu/gadgets-to-go/backend/images/${folioId}.${format}`;
-      try {
-        const response = await axios.get(imageUrl);
-        if (response.status === 200) return imageUrl;
-      } catch (error) { continue; }
-    }
-    return null;
-  };
+    loadImages();
+    return () => { cancelled = true; };
+  }, [inventoryData, imageSrcs]);
 
   const openEditModal = (item) => {
     setEditableItem(item);
@@ -438,37 +425,16 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
     });
   };
 
+  const handleBulkFilterGroupChange = (group, selectedOptionIds) => {
+    const groupOptionIds = new Set(group.options.map(option => Number(option.id)));
+    setBulkFilterOptionIds(previous => {
+      const otherGroupIds = previous.filter(id => !groupOptionIds.has(Number(id)));
+      return [...otherGroupIds, ...selectedOptionIds.map(Number)];
+    });
+  };
+
   const handleImageChange = (e) => {
     if (e.target.files[0]) setImageFile(e.target.files[0]);
-  };
-
-  // --- Smart Sort Logic ---
-  const handleSortChange = (newSortOrder) => {
-    setFormData(prev => ({ ...prev, sort_order: parseInt(newSortOrder, 10) }));
-  };
-
-  const applySmartSort = async (item, newSortOrder) => {
-    const oldSortOrder = item.sort_order;
-    if (oldSortOrder === newSortOrder) return [];
-    const updates = [];
-    const affectedItems = [];
-
-    if (oldSortOrder < newSortOrder) {
-      inventoryData.forEach(i => {
-        if (i.id !== item.id && i.sort_order > oldSortOrder && i.sort_order <= newSortOrder) {
-          updates.push({ id: i.id, sort_order: i.sort_order - 1 });
-          affectedItems.push(i);
-        }
-      });
-    } else {
-      inventoryData.forEach(i => {
-        if (i.id !== item.id && i.sort_order >= newSortOrder && i.sort_order < oldSortOrder) {
-          updates.push({ id: i.id, sort_order: i.sort_order + 1 });
-          affectedItems.push(i);
-        }
-      });
-    }
-    return updates;
   };
 
   const handleUpdate = async () => {
@@ -521,6 +487,95 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
       toast.success('Item deleted successfully!');
       refreshInventory();
     } catch (error) { toast.error('Failed to delete item.'); }
+  };
+
+  const getItemFilterOptionIds = (item) => {
+    if (Array.isArray(item.filter_option_ids)) return item.filter_option_ids.map(Number);
+    if (Array.isArray(item.custom_filter_option_ids)) return item.custom_filter_option_ids.map(Number);
+    if (Array.isArray(item.custom_filters)) return item.custom_filters.map(filter => Number(filter.id));
+    return [];
+  };
+
+  const summarizeItemTitles = (items) => {
+    const names = items.map((item) => item.title).slice(0, 3).join(', ');
+    return items.length > 3 ? `${names}, and ${items.length - 3} more` : names;
+  };
+
+  const openBulkFilterModal = () => {
+    setBulkFilterOptionIds([]);
+    setReplaceExistingFilters(false);
+    setIsBulkFilterModalOpen(true);
+  };
+
+  const handleBulkFilterApply = async () => {
+    if (selectedItemIds.length === 0) {
+      toast.warning('Select at least one item first.');
+      return;
+    }
+
+    if (bulkFilterOptionIds.length === 0) {
+      toast.warning('Select at least one custom filter option.');
+      return;
+    }
+
+    try {
+      const selectedSet = new Set(selectedItemIds.map(Number));
+      const itemsToUpdate = inventoryData.filter(item => selectedSet.has(Number(item.id)));
+
+      const results = await Promise.all(itemsToUpdate.map(async (item) => {
+        const currentFilterIds = getItemFilterOptionIds(item);
+        const nextFilterIds = replaceExistingFilters
+          ? bulkFilterOptionIds
+          : Array.from(new Set([...currentFilterIds, ...bulkFilterOptionIds]));
+        const form = new FormData();
+        form.append('title', item.title);
+        form.append('description', item.description || '');
+        form.append('sort_order', item.sort_order);
+        form.append('owner', item.owner);
+        form.append('folio_id', item.folio_id);
+        form.append('aleph_id', item.aleph_id || '');
+
+        const itemBranches = Array.isArray(item.branches) ? item.branches : (item.branch ? [item.branch] : []);
+        itemBranches.forEach(branch => form.append('branches[]', branch));
+        nextFilterIds.forEach(id => form.append('filter_option_ids[]', id));
+
+        try {
+          await axios.post(`${baseUrl}/inventory/update/${item.id}`, form, {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+          });
+          return { status: 'fulfilled', item };
+        } catch (error) {
+          console.error('Failed to bulk update filters for item:', item.title, error);
+          return { status: 'rejected', item };
+        }
+      }));
+
+      const successes = results.filter(result => result.status === 'fulfilled');
+      const failures = results.filter(result => result.status === 'rejected').map(result => result.item);
+
+      if (successes.length > 0 && failures.length > 0) {
+        refreshInventory();
+      }
+
+      if (failures.length > 0) {
+        setSelectedItemIds(failures.map(item => item.id));
+        if (successes.length > 0) {
+          toast.warning(`Updated filters for ${successes.length} item${successes.length === 1 ? '' : 's'}; ${failures.length} failed: ${summarizeItemTitles(failures)}.`);
+        } else {
+          toast.error(`No selected item filters were updated. Failed: ${summarizeItemTitles(failures)}.`);
+        }
+        return;
+      }
+
+      toast.success(`Updated filters for ${successes.length} item${successes.length === 1 ? '' : 's'}.`);
+      setIsBulkFilterModalOpen(false);
+      setBulkFilterOptionIds([]);
+      setSelectedItemIds([]);
+      refreshInventory();
+    } catch (error) {
+      console.error('Failed to bulk update filters', error);
+      toast.error('Failed to update selected item filters.');
+    }
   };
 
 
@@ -613,8 +668,12 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
                   ))}
                 </div>
                 <div className="d-flex flex-nowrap gap-1">
-                  <Button size="sm" color="outline-primary" onClick={() => openEditModal(item)} aria-label={`Edit ${item.title}`}><i className="bi bi-pencil" aria-hidden="true"></i></Button>
-                  <Button size="sm" color="outline-danger" onClick={() => handleDelete(item)} aria-label={`Delete ${item.title}`}><i className="bi bi-trash" aria-hidden="true"></i></Button>
+                  <Button size="sm" color="outline-primary" onClick={() => openEditModal(item)} aria-label={`Edit ${item.title}`} title="Edit item">
+                    <Pencil size={16} aria-hidden="true" />
+                  </Button>
+                  <Button size="sm" color="outline-danger" onClick={() => handleDelete(item)} aria-label={`Delete ${item.title}`} title="Delete item">
+                    <Trash2 size={16} aria-hidden="true" />
+                  </Button>
                 </div>
               </div>
             </CardBody>
@@ -663,12 +722,25 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
         <td>{getBranchesDisplay(item)}</td>
         <td className="text-end">
           <div className="d-flex justify-content-end gap-1">
-            <Button size="sm" color="outline-primary" onClick={() => openEditModal(item)} aria-label={`Edit ${item.title}`}><i className="bi bi-pencil" aria-hidden="true"></i></Button>
-            <Button size="sm" color="outline-danger" onClick={() => handleDelete(item)} aria-label={`Delete ${item.title}`}><i className="bi bi-trash" aria-hidden="true"></i></Button>
+            <Button size="sm" color="outline-primary" onClick={() => openEditModal(item)} aria-label={`Edit ${item.title}`} title="Edit item">
+              <Pencil size={16} aria-hidden="true" />
+            </Button>
+            <Button size="sm" color="outline-danger" onClick={() => handleDelete(item)} aria-label={`Delete ${item.title}`} title="Delete item">
+              <Trash2 size={16} aria-hidden="true" />
+            </Button>
           </div>
         </td>
       </tr>
     );
+  };
+
+  SortableRow.propTypes = {
+    item: PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+      title: PropTypes.string.isRequired,
+      description: PropTypes.string,
+    }).isRequired,
+    index: PropTypes.number.isRequired,
   };
 
   // Handle drag end
@@ -676,8 +748,8 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = localInventory.findIndex((item) => item.id === active.id);
-      const newIndex = localInventory.findIndex((item) => item.id === over.id);
+      const oldIndex = localInventory.findIndex((inventoryItem) => inventoryItem.id === active.id);
+      const newIndex = localInventory.findIndex((inventoryItem) => inventoryItem.id === over.id);
 
       const newOrder = arrayMove(localInventory, oldIndex, newIndex);
       setLocalInventory(newOrder);
@@ -729,12 +801,12 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={items.map(item => item.id)}
+            items={items.map(inventoryItem => inventoryItem.id)}
             strategy={verticalListSortingStrategy}
           >
             <tbody>
-              {items.map((item, index) => (
-                <SortableRow key={item.id} item={item} index={index} />
+              {items.map((inventoryItem, index) => (
+                <SortableRow key={inventoryItem.id} item={inventoryItem} index={index} />
               ))}
             </tbody>
           </SortableContext>
@@ -757,6 +829,11 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
           <div className="d-flex gap-2">
             {selectedItemIds.length > 0 && (
               <Button color="light" size="sm" onClick={openMoveModal} aria-label="Move selected items"><i className="bi bi-arrow-down-up" aria-hidden="true"></i> Move</Button>
+            )}
+            {selectedItemIds.length > 0 && filterGroups.length > 0 && (
+              <Button color="light" size="sm" onClick={openBulkFilterModal} aria-label="Add filters to selected items">
+                <Filter size={15} className="me-1" aria-hidden="true" /> Filters
+              </Button>
             )}
             {hasUnsavedChanges && (
               <Button color="success" size="sm" onClick={handleSaveOrder} aria-label="Save order changes"><i className="bi bi-check-lg" aria-hidden="true"></i> Save Order</Button>
@@ -813,7 +890,9 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
               <i className="bi bi-list-ul"></i> List
             </Button>
           </ButtonGroup>
-          <Button color="primary" onClick={toggleSearchModal}>+ Add Equipment</Button>
+          <Button color="primary" onClick={toggleSearchModal} className="d-inline-flex align-items-center gap-2 text-white">
+            <Plus size={16} aria-hidden="true" /> Add Equipment
+          </Button>
         </div>
       </div>
 
@@ -880,6 +959,51 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
         <ModalFooter>
           <Button color="secondary" onClick={() => setIsMoveModalOpen(false)}>Cancel</Button>
           <Button color="primary" onClick={handleBatchMove} disabled={!moveTargetId}>Move Items</Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Bulk Filter Modal */}
+      <Modal isOpen={isBulkFilterModalOpen} toggle={() => setIsBulkFilterModalOpen(!isBulkFilterModalOpen)} size="lg">
+        <ModalHeader toggle={() => setIsBulkFilterModalOpen(!isBulkFilterModalOpen)}>
+          Add Filters to {selectedItemIds.length} Selected Item{selectedItemIds.length === 1 ? '' : 's'}
+        </ModalHeader>
+        <ModalBody>
+          <p className="text-muted small mb-3">
+            Selected filter options will be added to each selected item. Existing filters are preserved unless replace is enabled.
+          </p>
+          <div className="row g-3">
+            {filterGroups.map((group) => (
+              <Col md={6} key={group.id}>
+                <MultiSelectFilter
+                  label={group.name}
+                  options={group.options}
+                  idField="id"
+                  selectedValues={bulkFilterOptionIds.filter(id => (
+                    group.options.some(option => Number(option.id) === Number(id))
+                  ))}
+                  onChange={(selectedIds) => handleBulkFilterGroupChange(group, selectedIds)}
+                  placeholder={`Select ${group.name}`}
+                />
+              </Col>
+            ))}
+          </div>
+          <FormGroup check className="mt-4">
+            <Input
+              id="replace-existing-filters"
+              type="checkbox"
+              checked={replaceExistingFilters}
+              onChange={(event) => setReplaceExistingFilters(event.target.checked)}
+            />
+            <Label check for="replace-existing-filters">
+              Replace existing custom filters on selected items
+            </Label>
+          </FormGroup>
+        </ModalBody>
+        <ModalFooter>
+          <Button color="secondary" onClick={() => setIsBulkFilterModalOpen(false)}>Cancel</Button>
+          <Button color="primary" onClick={handleBulkFilterApply} disabled={bulkFilterOptionIds.length === 0}>
+            Apply Filters
+          </Button>
         </ModalFooter>
       </Modal>
 
@@ -1031,7 +1155,6 @@ InventoryTab.propTypes = {
   baseUrl: PropTypes.string.isRequired,
   token: PropTypes.string.isRequired,
   refreshInventory: PropTypes.func.isRequired,
-  setLocalInventoryData: PropTypes.func.isRequired,
   mapLocations: PropTypes.string,
   filterGroups: PropTypes.array,
 };

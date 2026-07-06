@@ -93,7 +93,7 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
   return (
     <>
       <h2 className="mb-4">Add New Item</h2>
-      <Form onSubmit={handleAddItem} aria-label=\"Add new inventory item\">
+      <Form onSubmit={handleAddItem} aria-label="Add new inventory item">
         <Row>
           <Col md={6}>
             <FormGroup>

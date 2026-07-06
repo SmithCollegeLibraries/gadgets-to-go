@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import SchoolCard from '../components/SchoolCard';
 import useSchoolStore from '../store/schoolStore';
 import amherstImage from '../../public/images/amherst.gif';

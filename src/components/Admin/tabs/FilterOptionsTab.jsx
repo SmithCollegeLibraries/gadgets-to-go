@@ -14,6 +14,7 @@ import {
 } from 'reactstrap';
 import PropTypes from 'prop-types';
 import { toast } from 'react-toastify';
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { fetchFilterGroups, saveFilterGroups } from '../../../api/filterOptions';
 import { slugifyFilterValue } from '../../../utils/customFilters';
 
@@ -207,17 +208,28 @@ function FilterOptionsTab({ baseUrl, token, mapLocations, onFiltersChanged }) {
             {groups.length} groups, {activeOptionCount} active options for {mapLocations}
           </div>
         </div>
-        <Button color="primary" onClick={addGroup}>
-          <i className="bi bi-plus-lg me-2" aria-hidden="true"></i>Add Filter Group
+        <Button color="primary" onClick={addGroup} className="d-inline-flex align-items-center gap-2 text-white">
+          <Plus size={16} aria-hidden="true" /> Add Filter Group
         </Button>
       </div>
+
+      <Alert color="info" className="mb-4">
+        <div className="fw-bold mb-1">Set up groups by how users should combine filters.</div>
+        <div className="small mb-0">
+          Use one group for options users should combine as any of these. For equipment collections,
+          create one group such as Equipment Collection, then add options like MH Circulation Equipment
+          and MH Media Resources. Separate groups narrow results together.
+        </div>
+      </Alert>
 
       {groups.length === 0 ? (
         <Card className="border-dashed">
           <CardBody className="text-center py-5">
             <h3 className="h5">No custom filters yet</h3>
             <p className="text-muted mb-3">Create a group such as Collections, then add options that can be assigned to inventory items.</p>
-            <Button color="primary" onClick={addGroup}>Create First Group</Button>
+            <Button color="primary" onClick={addGroup} className="d-inline-flex align-items-center gap-2 mx-auto text-white">
+              <Plus size={16} aria-hidden="true" /> Create First Group
+            </Button>
           </CardBody>
         </Card>
       ) : (
@@ -245,10 +257,10 @@ function FilterOptionsTab({ baseUrl, token, mapLocations, onFiltersChanged }) {
                   <Col md={4}>
                     <div className="d-flex justify-content-end gap-2 mb-3">
                       <Button color="light" size="sm" onClick={() => moveGroup(group.id, 'up')} disabled={groupIndex === 0} title="Move group up">
-                        <i className="bi bi-arrow-up" aria-hidden="true"></i>
+                        <ArrowUp size={16} aria-hidden="true" />
                       </Button>
                       <Button color="light" size="sm" onClick={() => moveGroup(group.id, 'down')} disabled={groupIndex === groups.length - 1} title="Move group down">
-                        <i className="bi bi-arrow-down" aria-hidden="true"></i>
+                        <ArrowDown size={16} aria-hidden="true" />
                       </Button>
                       <Button
                         color={group.is_active === false ? 'outline-success' : 'outline-secondary'}
@@ -257,8 +269,8 @@ function FilterOptionsTab({ baseUrl, token, mapLocations, onFiltersChanged }) {
                       >
                         {group.is_active === false ? 'Enable' : 'Disable'}
                       </Button>
-                      <Button color="outline-danger" size="sm" onClick={() => removeGroup(group.id)}>
-                        Delete
+                      <Button color="outline-danger" size="sm" onClick={() => removeGroup(group.id)} className="d-inline-flex align-items-center gap-1">
+                        <Trash2 size={15} aria-hidden="true" /> Delete
                       </Button>
                     </div>
                   </Col>
@@ -266,8 +278,8 @@ function FilterOptionsTab({ baseUrl, token, mapLocations, onFiltersChanged }) {
 
                 <div className="d-flex justify-content-between align-items-center mb-2">
                   <div className="fw-bold">Options</div>
-                  <Button color="outline-primary" size="sm" onClick={() => addOption(group.id)}>
-                    <i className="bi bi-plus-lg me-1" aria-hidden="true"></i>Add Option
+                  <Button color="outline-primary" size="sm" onClick={() => addOption(group.id)} className="d-inline-flex align-items-center gap-1">
+                    <Plus size={15} aria-hidden="true" /> Add Option
                   </Button>
                 </div>
 
@@ -303,10 +315,10 @@ function FilterOptionsTab({ baseUrl, token, mapLocations, onFiltersChanged }) {
                         <td className="text-end">
                           <div className="d-flex justify-content-end gap-1">
                             <Button color="light" size="sm" onClick={() => moveOption(group.id, option.id, 'up')} disabled={optionIndex === 0} title="Move option up">
-                              <i className="bi bi-arrow-up" aria-hidden="true"></i>
+                              <ArrowUp size={16} aria-hidden="true" />
                             </Button>
                             <Button color="light" size="sm" onClick={() => moveOption(group.id, option.id, 'down')} disabled={optionIndex === group.options.length - 1} title="Move option down">
-                              <i className="bi bi-arrow-down" aria-hidden="true"></i>
+                              <ArrowDown size={16} aria-hidden="true" />
                             </Button>
                             <Button
                               color={option.is_active === false ? 'outline-success' : 'outline-secondary'}
@@ -316,7 +328,7 @@ function FilterOptionsTab({ baseUrl, token, mapLocations, onFiltersChanged }) {
                               {option.is_active === false ? 'Enable' : 'Hide'}
                             </Button>
                             <Button color="outline-danger" size="sm" onClick={() => removeOption(group.id, option.id)}>
-                              <i className="bi bi-trash" aria-hidden="true"></i>
+                              <Trash2 size={16} aria-hidden="true" />
                             </Button>
                           </div>
                         </td>
