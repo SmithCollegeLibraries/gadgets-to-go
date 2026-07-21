@@ -321,7 +321,7 @@ Replace the hidden input with:
 
 ```jsx
 <Input
-  ref={editImageInputRef}
+  innerRef={editImageInputRef}
   type="file"
   hidden
   onChange={handleImageChange}
@@ -547,7 +547,7 @@ Replace the batch image input cell with:
 
 ```jsx
 <Input
-  ref={(input) => {
+  innerRef={(input) => {
     if (input) imageInputRefs.current[String(item.id)] = input;
     else delete imageInputRefs.current[String(item.id)];
   }}
