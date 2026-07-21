@@ -440,7 +440,10 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
 
   const handleImageChange = (event) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      setImageFile(null);
+      return;
+    }
     const validationError = getImageUploadError(file);
     if (validationError) {
       event.target.value = '';

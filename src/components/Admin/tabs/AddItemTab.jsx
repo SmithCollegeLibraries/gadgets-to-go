@@ -54,7 +54,10 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
 
   const handleImageChange = (event) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      setNewItem((previous) => ({ ...previous, image: null }));
+      return;
+    }
     const validationError = getImageUploadError(file);
     if (validationError) {
       event.target.value = '';

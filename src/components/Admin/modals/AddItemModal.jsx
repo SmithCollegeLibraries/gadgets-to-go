@@ -110,7 +110,13 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
 
     const handleImageChange = (event, itemId) => {
         const file = event.target.files?.[0];
-        if (!file) return;
+        if (!file) {
+            setSelectedItemsData((previous) => ({
+                ...previous,
+                [itemId]: { ...previous[itemId], image: null },
+            }));
+            return;
+        }
         const validationError = getImageUploadError(file);
         if (validationError) {
             event.target.value = '';
