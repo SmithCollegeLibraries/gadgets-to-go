@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
     Modal, ModalHeader, ModalBody, ModalFooter,
     Row, Col, Label, Input, Button, Table
@@ -11,6 +11,11 @@ import 'react-quill/dist/quill.snow.css';
 import SearchableSelect from '../../Common/SearchableSelect';
 import MultiSelectFilter from '../../Common/MultiSelectFilter';
 import { locations } from '../../../data/locations';
+import {
+    buildBatchUploadFailureMessage,
+    getApiErrorMessage,
+    getImageUploadError,
+} from '../../../utils/adminImageUploads';
 import { buildFolioInventorySearchUrl, getLocationUuid } from '../../../utils/folioSearch';
 
 // ReactQuill toolbar configuration
@@ -49,6 +54,7 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
     const [isSearching, setIsSearching] = useState(false);
     const [batchBranch, setBatchBranch] = useState('');
     const [batchFilterOptionIds, setBatchFilterOptionIds] = useState([]);
+    const imageInputRefs = useRef({});
     const ownerLocationPrefix = ownerLocationPrefixes[mapLocations] || '';
     const folioLocations = locations
         .filter((item) => !ownerLocationPrefix || item.name.startsWith(`${ownerLocationPrefix} `) || item.name.startsWith(ownerLocationPrefix))
@@ -102,9 +108,22 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
         return form;
     };
 
-    const summarizeFailures = (failures) => {
-        const names = failures.map(({ item }) => item.title).slice(0, 3).join(', ');
-        return failures.length > 3 ? `${names}, and ${failures.length - 3} more` : names;
+    const handleImageChange = (event, itemId) => {
+        const file = event.target.files?.[0] || null;
+        const validationError = getImageUploadError(file);
+        if (validationError) {
+            event.target.value = '';
+            setSelectedItemsData((previous) => ({
+                ...previous,
+                [itemId]: { ...previous[itemId], image: null },
+            }));
+            toast.error(validationError);
+            return;
+        }
+        setSelectedItemsData((previous) => ({
+            ...previous,
+            [itemId]: { ...previous[itemId], image: file },
+        }));
     };
 
     const handleBatchUpload = async () => {
@@ -112,6 +131,22 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
 
         if (itemsToUpload.length === 0) {
             toast.warning("Please select at least one item to add.");
+            return;
+        }
+
+        const invalidItems = itemsToUpload.filter(({ image }) => getImageUploadError(image));
+        if (invalidItems.length > 0) {
+            const invalidIds = new Set(invalidItems.map(({ item }) => String(item.id)));
+            setSelectedItemsData((previous) => Object.fromEntries(
+                Object.entries(previous).map(([itemId, data]) => [
+                    itemId,
+                    invalidIds.has(itemId) ? { ...data, image: null } : data,
+                ]),
+            ));
+            invalidIds.forEach((itemId) => {
+                if (imageInputRefs.current[itemId]) imageInputRefs.current[itemId].value = '';
+            });
+            toast.error(getImageUploadError(invalidItems[0].image));
             return;
         }
 
@@ -123,7 +158,11 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
                 return { status: 'fulfilled', item: data.item };
             } catch (error) {
                 console.error('Failed to add item:', data.item?.title, error);
-                return { status: 'rejected', item: data.item };
+                return {
+                    status: 'rejected',
+                    item: data.item,
+                    message: getApiErrorMessage(error, 'Failed to add item.'),
+                };
             }
         }));
 
@@ -140,10 +179,11 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
                 Object.entries(previous).filter(([itemId]) => failedIds.has(itemId))
             ));
 
+            const failureMessage = buildBatchUploadFailureMessage(successes.length, failures);
             if (successes.length > 0) {
-                toast.warning(`Added ${successes.length} item${successes.length === 1 ? '' : 's'}; ${failures.length} failed: ${summarizeFailures(failures)}.`);
+                toast.warning(failureMessage);
             } else {
-                toast.error(`No items were added. Failed: ${summarizeFailures(failures)}.`);
+                toast.error(failureMessage);
             }
             return;
         }
@@ -332,13 +372,20 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
                                             </td>
                                             <td>
                                                 <Input
+                                                    innerRef={(input) => {
+                                                        if (input) imageInputRefs.current[String(item.id)] = input;
+                                                        else delete imageInputRefs.current[String(item.id)];
+                                                    }}
                                                     type="file"
+                                                    accept="image/*"
                                                     size="sm"
                                                     className="form-control-sm"
-                                                    onChange={(e) => {
-                                                        setSelectedItemsData(p => ({ ...p, [item.id]: { ...p[item.id], image: e.target.files[0] } }));
-                                                    }}
+                                                    aria-describedby={`image-help-${item.id}`}
+                                                    onChange={(event) => handleImageChange(event, item.id)}
                                                 />
+                                                <small id={`image-help-${item.id}`} className="text-muted d-block mt-1">
+                                                    Maximum file size: 2 MB
+                                                </small>
                                             </td>
                                         </tr>
                                     ))}
