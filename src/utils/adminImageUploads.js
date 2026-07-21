@@ -27,7 +27,9 @@ export function getApiErrorMessage(error, fallback) {
       .map((entry) => normalizeMessage(entry?.message))
       .filter(Boolean);
     const uniqueMessages = [...new Set(messages)];
-    if (uniqueMessages.length > 0) return uniqueMessages.join(' ');
+    if (uniqueMessages.length > 0) {
+      return normalizeMessage(uniqueMessages.join(' ')) || fallback;
+    }
   }
 
   const directMessage = normalizeMessage(data?.message);

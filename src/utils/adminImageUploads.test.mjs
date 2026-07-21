@@ -9,6 +9,7 @@ import {
 } from './adminImageUploads.js';
 
 assert.equal(MAX_IMAGE_UPLOAD_BYTES, 2 * 1024 * 1024);
+assert.equal(IMAGE_TOO_LARGE_MESSAGE, 'Image must be 2 MB or smaller.');
 assert.equal(getImageUploadError(null), null);
 assert.equal(getImageUploadError({ size: MAX_IMAGE_UPLOAD_BYTES }), null);
 assert.equal(
@@ -42,6 +43,17 @@ assert.equal(
 );
 assert.equal(
   getApiErrorMessage({ response: { data: 'x'.repeat(301) } }, 'Fallback.'),
+  'Fallback.',
+);
+assert.equal(
+  getApiErrorMessage({
+    response: {
+      data: [
+        { field: 'image', message: 'x'.repeat(200) },
+        { field: 'title', message: 'y'.repeat(200) },
+      ],
+    },
+  }, 'Fallback.'),
   'Fallback.',
 );
 assert.equal(getApiErrorMessage({ response: { data: {} } }, 'Fallback.'), 'Fallback.');
