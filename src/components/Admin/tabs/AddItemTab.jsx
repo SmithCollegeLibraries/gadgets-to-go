@@ -3,7 +3,12 @@ import { Form, FormGroup, Label, Input, Button, Row, Col } from 'reactstrap';
 import axios from 'axios';
 import PropTypes from 'prop-types';
 import ReactQuill from 'react-quill';
+import { toast } from 'react-toastify';
 import 'react-quill/dist/quill.snow.css';
+import {
+  getApiErrorMessage,
+  getImageUploadError,
+} from '../../../utils/adminImageUploads';
 
 // ReactQuill toolbar configuration
 const quillModules = {
@@ -46,15 +51,27 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
     });
   };
 
-  const handleImageChange = (e) => {
-    setNewItem({
-      ...newItem,
-      image: e.target.files[0],
-    });
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    const validationError = getImageUploadError(file);
+    if (validationError) {
+      event.target.value = '';
+      setNewItem((previous) => ({ ...previous, image: null }));
+      toast.error(validationError);
+      return;
+    }
+    setNewItem((previous) => ({ ...previous, image: file }));
   };
 
   const handleAddItem = async (e) => {
     e.preventDefault();
+    const validationError = getImageUploadError(newItem.image);
+    if (validationError) {
+      setNewItem((previous) => ({ ...previous, image: null }));
+      e.currentTarget.elements.file.value = '';
+      toast.error(validationError);
+      return;
+    }
     const formData = new FormData();
     formData.append('title', newItem.title);
     formData.append('folio_id', newItem.folio_id);
@@ -87,6 +104,7 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
       onItemAdded(); // Refresh inventory data
     } catch (error) {
       console.error('Error adding new item:', error);
+      toast.error(getApiErrorMessage(error, 'Failed to add item.'));
     }
   };
 
@@ -165,7 +183,7 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
               />
               <small id="file-help" className="text-muted d-block mt-1">
                 <i className="bi bi-info-circle me-1" aria-hidden="true"></i>
-                Supported formats: JPG, PNG, GIF
+                Supported formats: JPG, PNG, GIF. Maximum file size: 2 MB
               </small>
             </FormGroup>
           </Col>
