@@ -16,6 +16,7 @@ dist-ssr
 # Local Five Colleges support artifacts
 backend/
 .playwright-mcp/
+.superpowers/
 .worktrees/
 *.sql
 
