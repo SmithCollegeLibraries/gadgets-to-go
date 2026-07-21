@@ -16,7 +16,7 @@ The production deployment's separately managed `php.ini` has been verified to se
 
 ## Design
 
-Create a small shared utility that owns upload rules and API error extraction. It will expose the 2 MiB byte limit, validate a selected file, and return a stable user-facing message for oversized images. It will also extract a useful message from an Axios error response while accepting a caller-provided fallback.
+Create a small shared utility that owns upload rules and API error extraction. It will expose the 2 MiB byte limit, validate a selected file, and return a stable user-facing message for oversized images. A comment beside the limit will identify the deployment's `php.ini` as the matching server-side setting so their coupling is discoverable where the constant is edited. The utility will also extract a useful message from an Axios error response while accepting a caller-provided fallback.
 
 Each image input will validate its selected file before placing it in React state. When a file is too large, the handler will clear the input and pending file state, then show an error toast reading `Image must be 2 MB or smaller.` In the edit flow, clearing the pending file must leave the existing saved-image preview unchanged. No upload request will be made with the rejected file.
 
@@ -28,7 +28,7 @@ Every image input will display `Maximum file size: 2 MB` in its help text. The U
 
 Upload request failures will prefer a useful message supplied by the API. The extractor will support the response shapes produced by this Yii backend:
 
-- a string response body;
+- a short plain-text response body; strings that contain markup or exceed the toast-length threshold will be ignored;
 - an HTTP exception object with `response.data.message`; and
 - a validation-error array containing `{ field, message }` objects, whose non-empty messages will be deduplicated and joined in response order.
 
