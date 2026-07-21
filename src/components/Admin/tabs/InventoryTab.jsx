@@ -2,7 +2,7 @@ import {
   Row, Col, Card, CardBody, CardTitle, Button, Input, FormGroup, Label, Modal, ModalHeader, ModalBody, ModalFooter, Table, ButtonGroup
 } from 'reactstrap';
 import PropTypes from 'prop-types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -12,6 +12,10 @@ import { branches } from '../../../data/branches';
 import SearchableSelect from '../../Common/SearchableSelect';
 import MultiSelectFilter from '../../Common/MultiSelectFilter';
 import AddItemModal from '../modals/AddItemModal';
+import {
+  getApiErrorMessage,
+  getImageUploadError,
+} from '../../../utils/adminImageUploads';
 import {
   DndContext,
   closestCenter,
@@ -73,6 +77,7 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
   const [formData, setFormData] = useState({});
   const [imageFile, setImageFile] = useState(null);
   const [imageSrcs, setImageSrcs] = useState({});
+  const editImageInputRef = useRef(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -433,12 +438,28 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
     });
   };
 
-  const handleImageChange = (e) => {
-    if (e.target.files[0]) setImageFile(e.target.files[0]);
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    const validationError = getImageUploadError(file);
+    if (validationError) {
+      event.target.value = '';
+      setImageFile(null);
+      toast.error(validationError);
+      return;
+    }
+    setImageFile(file);
   };
 
   const handleUpdate = async () => {
     if (!editableItem) return;
+
+    const validationError = getImageUploadError(imageFile);
+    if (validationError) {
+      setImageFile(null);
+      if (editImageInputRef.current) editImageInputRef.current.value = '';
+      toast.error(validationError);
+      return;
+    }
 
     try {
       const form = new FormData();
@@ -473,7 +494,7 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
 
     } catch (error) {
       console.error('Failed to update', error);
-      toast.error('Failed to update item.');
+      toast.error(getApiErrorMessage(error, 'Failed to update item.'));
     }
   };
 
@@ -1024,8 +1045,15 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
                 <div className="mt-2">
                   <Label className="btn btn-sm btn-outline-secondary w-100" style={{ cursor: 'pointer' }}>
                     Upload New Image
-                    <Input type="file" hidden onChange={handleImageChange} accept="image/*" />
+                    <Input
+                      innerRef={editImageInputRef}
+                      type="file"
+                      hidden
+                      onChange={handleImageChange}
+                      accept="image/*"
+                    />
                   </Label>
+                  <small className="text-muted d-block mt-1">Maximum file size: 2 MB</small>
                 </div>
               </Col>
               <Col md={8}>
