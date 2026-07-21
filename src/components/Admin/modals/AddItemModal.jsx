@@ -109,7 +109,8 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
     };
 
     const handleImageChange = (event, itemId) => {
-        const file = event.target.files?.[0] || null;
+        const file = event.target.files?.[0];
+        if (!file) return;
         const validationError = getImageUploadError(file);
         if (validationError) {
             event.target.value = '';
@@ -161,7 +162,7 @@ const AddItemModal = ({ isOpen, toggle, baseUrl, token, mapLocations, refreshInv
                 return {
                     status: 'rejected',
                     item: data.item,
-                    message: getApiErrorMessage(error, 'Failed to add item.'),
+                    message: getApiErrorMessage(error, 'The request failed.'),
                 };
             }
         }));

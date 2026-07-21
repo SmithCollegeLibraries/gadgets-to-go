@@ -439,7 +439,8 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
   };
 
   const handleImageChange = (event) => {
-    const file = event.target.files?.[0] || null;
+    const file = event.target.files?.[0];
+    if (!file) return;
     const validationError = getImageUploadError(file);
     if (validationError) {
       event.target.value = '';
@@ -1051,9 +1052,10 @@ function InventoryTab({ inventoryData, styles, baseUrl, token, refreshInventory,
                       hidden
                       onChange={handleImageChange}
                       accept="image/*"
+                      aria-describedby="edit-image-help"
                     />
                   </Label>
-                  <small className="text-muted d-block mt-1">Maximum file size: 2 MB</small>
+                  <small id="edit-image-help" className="text-muted d-block mt-1">Maximum file size: 2 MB</small>
                 </div>
               </Col>
               <Col md={8}>

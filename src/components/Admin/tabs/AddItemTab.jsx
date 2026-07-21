@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Form, FormGroup, Label, Input, Button, Row, Col } from 'reactstrap';
 import axios from 'axios';
 import PropTypes from 'prop-types';
@@ -29,6 +29,7 @@ const quillFormats = [
 ];
 
 function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
+  const imageInputRef = useRef(null);
   const [newItem, setNewItem] = useState({
     title: '',
     description: '',
@@ -52,7 +53,8 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
   };
 
   const handleImageChange = (event) => {
-    const file = event.target.files?.[0] || null;
+    const file = event.target.files?.[0];
+    if (!file) return;
     const validationError = getImageUploadError(file);
     if (validationError) {
       event.target.value = '';
@@ -68,7 +70,7 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
     const validationError = getImageUploadError(newItem.image);
     if (validationError) {
       setNewItem((previous) => ({ ...previous, image: null }));
-      e.currentTarget.elements.file.value = '';
+      if (imageInputRef.current) imageInputRef.current.value = '';
       toast.error(validationError);
       return;
     }
@@ -174,6 +176,7 @@ function AddItemTab({ baseUrl, mapLocations, token, onItemAdded }) {
             <FormGroup>
               <Label for="file">Upload Image</Label>
               <Input
+                innerRef={imageInputRef}
                 type="file"
                 name="file"
                 id="file"
